@@ -72,14 +72,14 @@ test("stringify and unflatten async", async () => {
 
 	const result = await unflattenAsync<typeof source>(withDebug(iterable));
 
-	expect(await result.promise).toBe("resolved promise");
+	expect(await result.promise).toEqual("resolved promise");
 
 	const aggregate = [];
 	const iterator = result.asyncIterable[Symbol.asyncIterator]();
 	while (true) {
 		const next = await iterator.next();
 		if (next.done) {
-			expect(next.value).toBe("returned async iterable");
+			expect(next.value).toEqual("returned async iterable");
 			break;
 		}
 		aggregate.push(next.value);
@@ -166,7 +166,7 @@ test("stringify and parse async values with errors", async () => {
 			throw new Error("expected error");
 		}
 		expect(e).toBeInstanceOf(UnregisteredError);
-		expect(e.message).toBe("unknown error");
+		expect(e.message).toEqual("unknown error");
 	}
 	try {
 		await result.promise;
@@ -176,7 +176,7 @@ test("stringify and parse async values with errors", async () => {
 			throw new Error("expected error");
 		}
 		expect(e).toBeInstanceOf(MyCustomError);
-		expect(e.message).toBe("error in promise");
+		expect(e.message).toEqual("error in promise");
 	}
 
 	const aggregate = [];
@@ -189,10 +189,10 @@ test("stringify and parse async values with errors", async () => {
 			throw new Error("expected error");
 		}
 		expect(e).toBeInstanceOf(MyCustomError);
-		expect(e.message).toBe("error in async iterable");
+		expect(e.message).toEqual("error in async iterable");
 	}
 
-	assert.equal(aggregate, [-0]);
+	expect(aggregate).toEqual([-0]);
 });
 
 test("request/response-like readable streams", async () => {
@@ -229,20 +229,20 @@ test("request/response-like readable streams", async () => {
 		})(),
 	);
 
-	assert.equal(await result.promise, "resolved promise");
+	expect(await result.promise).toEqual("resolved promise");
 
 	const aggregate = [];
 	const iterator = result.asyncIterable[Symbol.asyncIterator]();
 	while (true) {
 		const next = await iterator.next();
 		if (next.done) {
-			assert.equal(next.value, "returned async iterable");
+			expect(next.value).toEqual("returned async iterable");
 			break;
 		}
 		aggregate.push(next.value);
 	}
 
-	assert.equal(aggregate, [-0, 1, 2]);
+	expect(aggregate).toEqual([-0, 1, 2]);
 });
 
 /* eslint-enable @typescript-eslint/no-unnecessary-condition */
