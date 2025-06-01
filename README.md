@@ -102,7 +102,7 @@ Devalue Async can handle errors in async operations:
 import { stringifyAsync, unflattenAsync } from "devalue-async";
 
 class CustomError extends Error {
-	constructor(message) {
+	constructor(message: string) {
 		super(message);
 		this.name = "CustomError";
 	}
@@ -144,7 +144,9 @@ When dealing with errors that don't have registered reducers, use `coerceError`:
 ```ts
 class GenericError extends Error {
 	constructor(cause: unknown) {
+		super("Generic error occurred", { cause });
 		console.log("GenericError", cause);
+		this.name = "GenericError";
 	}
 }
 
