@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable @typescript-eslint/require-await */
 /* eslint-disable n/no-unsupported-features/node-builtins */
 /* eslint-disable @typescript-eslint/no-unnecessary-condition */
@@ -350,3 +351,4 @@ test("stringify and unflatten ReadableStream", async () => {
 /* eslint-enable @typescript-eslint/no-unnecessary-condition */
 /* eslint-enable n/no-unsupported-features/node-builtins */
 /* eslint-enable @typescript-eslint/require-await */
+/* eslint-enable @typescript-eslint/no-explicit-any */
