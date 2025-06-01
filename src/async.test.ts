@@ -25,6 +25,7 @@ async function* asyncIterableFrom<T>(
 		}
 	} finally {
 		reader.releaseLock();
+		await reader.cancel();
 	}
 }
 function readableStreamFrom<T>(iterable: AsyncIterable<T>) {
