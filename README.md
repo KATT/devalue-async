@@ -18,13 +18,279 @@
 	<img alt="💪 TypeScript: Strict" src="https://img.shields.io/badge/%F0%9F%92%AA_typescript-strict-21bb42.svg" />
 </p>
 
-## Usage
+## About
+
+Wrapper around [devalue](https://github.com/Rich-Harris/devalue) with ability to serialize and deserialize async values.
+
+- **Promises** (both resolved and rejected)
+- **Async Iterables** (async generators, async iterators)
+- **ReadableStreams** (Web Streams API)
+- **All the goodness of devalue**: cyclical references, `undefined`, `Infinity`, `NaN`, `-0`, regular expressions, dates, `Map` and `Set`, `BigInt`, custom types, etc.
+
+## Installation
 
 ```shell
-npm i devalue-async
+npm install devalue devalue-async
 ```
 
-🚧
+## Usage
+
+There are two main functions: `stringifyAsync` and `unflattenAsync`.
+
+### Basic Example
+
+```ts
+import { stringifyAsync, unflattenAsync } from "devalue-async";
+
+const source = {
+	asyncIterable: (async function* () {
+		yield 1;
+		yield 2;
+		yield 3;
+		return "done!";
+	})(),
+	promise: Promise.resolve("Hello world"),
+};
+
+// Stringify to an async iterable of strings
+const serialized = stringifyAsync(source);
+
+// Reconstruct the original structure
+const result = await unflattenAsync<typeof source>(serialized);
+
+console.log(await result.promise); // 'Hello world'
+
+// Iterate through the async iterable
+for await (const value of result.asyncIterable) {
+	console.log(value); // 1, 2, 3
+}
+```
+
+### Working with ReadableStreams
+
+```ts
+import { stringifyAsync, unflattenAsync } from "devalue-async";
+
+const source = {
+	stream: new ReadableStream({
+		start(controller) {
+			controller.enqueue("chunk 1");
+			controller.enqueue("chunk 2");
+			controller.close();
+		},
+	}),
+};
+
+const serialized = stringifyAsync(source);
+const result = await unflattenAsync<typeof source>(serialized);
+
+const reader = result.stream.getReader();
+while (true) {
+	const res = await reader.read();
+	if (res.done) {
+		break;
+	}
+	console.log(res.value); // 'chunk 1', 'chunk 2'
+}
+```
+
+### Error Handling
+
+Devalue Async can handle errors in async operations:
+
+```ts
+import { stringifyAsync, unflattenAsync } from "devalue-async";
+
+class CustomError extends Error {
+	constructor(message: string) {
+		super(message);
+		this.name = "CustomError";
+	}
+}
+
+const source = {
+	asyncIterable: (async function* () {
+		yield 1;
+		yield 2;
+		throw new CustomError("Async error");
+	})(),
+	promise: Promise.reject(new CustomError("Something went wrong")),
+};
+
+const serialized = stringifyAsync(source, {
+	reducers: {
+		CustomError: (error) => error instanceof CustomError && error.message,
+	},
+});
+
+const result = await unflattenAsync<typeof source>(serialized, {
+	revivers: {
+		CustomError: (message) => new CustomError(message),
+	},
+});
+
+try {
+	await result.promise;
+} catch (error) {
+	console.log(error instanceof CustomError); // true
+	console.log(error.message); // 'Something went wrong'
+}
+```
+
+### Coercing Unknown Errors
+
+When dealing with errors that don't have registered reducers, use `coerceError`:
+
+```ts
+class GenericError extends Error {
+	constructor(cause: unknown) {
+		super("Generic error occurred", { cause });
+		console.log("GenericError", cause);
+		this.name = "GenericError";
+	}
+}
+
+const source = {
+	asyncIterable: (async function* () {
+		yield 1;
+		yield 2;
+		throw new Error("Generic error");
+	})(),
+};
+
+const serialized = stringifyAsync(source, {
+	coerceError: (error) => new GenericError(error),
+	reducers: {
+		GenericError: (error) => {
+			if (error instanceof GenericError) {
+				// Don't stringify the error
+				return null;
+			}
+			return false;
+		},
+	},
+});
+
+const result = await unflattenAsync<typeof source>(serialized, {
+	revivers: {
+		GenericError: () => new Error("Unknown error"),
+	},
+});
+```
+
+### Streaming Over HTTP
+
+Perfect for streaming server responses:
+
+```ts
+// Server
+app.get("/api/data", async (req, res) => {
+	const data = {
+		metrics: getMetricsStream(), // ReadableStream
+		notifications: getNotificationStream(), // async iterable
+		user: await getUserData(),
+	};
+
+	res.setHeader("Content-Type", "text/plain");
+
+	for await (const chunk of stringifyAsync(data)) {
+		res.write(chunk);
+	}
+	res.end();
+});
+
+// Client
+const response = await fetch("/api/data");
+const result = await unflattenAsync(
+	(async function* () {
+		const reader = response.body
+			.pipeThrough(new TextDecoderStream())
+			.getReader();
+
+		let buffer = "";
+		while (true) {
+			const { done, value } = await reader.read();
+			if (done) {
+				break;
+			}
+
+			buffer += value;
+			const lines = buffer.split("\n");
+			buffer = lines.pop() || "";
+
+			for (const line of lines) {
+				if (line) {
+					yield line;
+				}
+			}
+		}
+	})(),
+);
+
+console.log(result.user);
+for await (const notification of result.notifications) {
+	console.log(notification);
+}
+```
+
+### Custom Types
+
+Like devalue, you can handle custom types with reducers and revivers:
+
+```ts
+class Vector {
+	constructor(
+		public x: number,
+		public y: number,
+	) {}
+}
+
+const source = {
+	vectors: (async function* () {
+		yield new Vector(1, 2);
+		yield new Vector(3, 4);
+	})(),
+};
+
+const serialized = stringifyAsync(source, {
+	reducers: {
+		Vector: (value) => value instanceof Vector && [value.x, value.y],
+	},
+});
+
+const result = await unflattenAsync<typeof source>(serialized, {
+	revivers: {
+		Vector: ([x, y]) => new Vector(x, y),
+	},
+});
+
+console.log(result.vectors); // [Vector { x: 1, y: 2 }, Vector { x: 3, y: 4 }]
+```
+
+## API Reference
+
+### `stringifyAsync(value, options?)`
+
+Serializes a value containing async elements to an async iterable of strings.
+
+**Parameters:**
+
+- `value`: The value to serialize
+- `options.reducers?`: Record of custom type reducers (same as devalue)
+- `options.coerceError?`: Function to handle unregistered errors
+
+**Returns:** `AsyncIterable<string>`
+
+### `unflattenAsync(iterable, options?)`
+
+Reconstructs a value from a serialized async iterable.
+
+**Parameters:**
+
+- `iterable`: `AsyncIterable<string>` from `stringifyAsync`
+- `options.revivers?`: Record of custom type revivers (same as devalue)
+
+**Returns:** `Promise<T>`
 
 ## Development
 

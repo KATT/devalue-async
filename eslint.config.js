@@ -46,6 +46,7 @@ export default tseslint.config(
 				"always",
 				{ enforceForIfStatements: true },
 			],
+			"n/no-unsupported-features/node-builtins": "off",
 			"no-useless-rename": "error",
 			"object-shorthand": "error",
 			"operator-assignment": "error",
@@ -58,12 +59,20 @@ export default tseslint.config(
 	{
 		extends: [tseslint.configs.disableTypeChecked],
 		files: ["**/*.md/*.ts"],
-		rules: { "n/no-missing-import": "off" },
+		rules: {
+			"@typescript-eslint/no-unused-vars": "off",
+			"n/no-missing-import": "off",
+		},
 	},
 	{
 		extends: [vitest.configs.recommended],
 		files: ["**/*.test.*"],
-		rules: { "@typescript-eslint/no-unsafe-assignment": "off" },
+		rules: {
+			"@typescript-eslint/no-explicit-any": "off",
+			"@typescript-eslint/no-unsafe-assignment": "off",
+			"@typescript-eslint/no-unsafe-return": "off",
+			"@typescript-eslint/require-await": "off",
+		},
 	},
 	{
 		extends: [yml.configs["flat/standard"], yml.configs["flat/prettier"]],
