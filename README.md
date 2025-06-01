@@ -202,29 +202,7 @@ app.get("/api/data", async (req, res) => {
 // Client
 const response = await fetch("/api/data");
 const result = await unflattenAsync(
-	(async function* () {
-		const reader = response.body
-			.pipeThrough(new TextDecoderStream())
-			.getReader();
-
-		let buffer = "";
-		while (true) {
-			const { done, value } = await reader.read();
-			if (done) {
-				break;
-			}
-
-			buffer += value;
-			const lines = buffer.split("\n");
-			buffer = lines.pop() || "";
-
-			for (const line of lines) {
-				if (line) {
-					yield line;
-				}
-			}
-		}
-	})(),
+	response.body!.pipeThrough(new TextDecoderStream()),
 );
 
 console.log(result.user);

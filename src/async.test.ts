@@ -25,7 +25,6 @@ async function* asyncIterableFrom<T>(
 		}
 	} finally {
 		reader.releaseLock();
-		await reader.cancel();
 	}
 }
 function readableStreamFrom<T>(iterable: AsyncIterable<T>) {
@@ -284,21 +283,7 @@ test("request/response-like readable streams", async () => {
 	).pipeThrough(new TextEncoderStream());
 
 	const result = await unflattenAsync<typeof source>(
-		(async function* () {
-			const iterable = asyncIterableFrom(
-				responseBodyStream.pipeThrough(new TextDecoderStream()),
-			);
-
-			let lineAggregate = "";
-			for await (const chunk of iterable) {
-				lineAggregate += chunk;
-				const parts = lineAggregate.split("\n");
-				lineAggregate = parts.pop() ?? "";
-				for (const part of parts) {
-					yield part;
-				}
-			}
-		})(),
+		asyncIterableFrom(responseBodyStream.pipeThrough(new TextDecoderStream())),
 	);
 
 	expect(await result.promise).toEqual("resolved promise");
@@ -404,14 +389,11 @@ test("async over the wire", async () => {
 
 		const bodyTextStream = response.body!.pipeThrough(new TextDecoderStream());
 
-		const result = await unflattenAsync<Source>(
-			asyncIterableFrom(bodyTextStream),
-		);
+		const result = await unflattenAsync<Source>(bodyTextStream);
 
 		const aggregate: string[] = [];
 
 		for await (const chunk of result.asyncIterable) {
-			console.log({ chunk });
 			aggregate.push(chunk);
 		}
 
