@@ -9,6 +9,6 @@ export default defineConfig({
 			reporter: ["html", "lcov"],
 		},
 		exclude: ["lib", "node_modules"],
-		setupFiles: ["console-fail-test/setup"],
+		setupFiles: process.env.CI ? ["console-fail-test/setup"] : [],
 	},
 });

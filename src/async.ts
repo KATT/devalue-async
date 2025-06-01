@@ -1,3 +1,5 @@
+/* eslint-disable perfectionist/sort-objects */
+/* eslint-disable n/no-unsupported-features/node-builtins */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable @typescript-eslint/no-unnecessary-condition */
 
@@ -67,8 +69,37 @@ export async function* stringifyAsync(
 		return idx;
 	}
 
-	const revivers: Record<string, (value: unknown) => unknown> = {
+	const reducers: Record<string, (value: unknown) => unknown> = {
 		...options.reducers,
+		ReadableStream(v) {
+			if (!(v instanceof ReadableStream)) {
+				return false;
+			}
+			return registerAsync(async function* () {
+				const reader = v.getReader();
+				try {
+					while (true) {
+						const next = await reader.read();
+
+						if (next.done) {
+							yield [
+								ASYNC_ITERABLE_STATUS_RETURN,
+								stringify(next.value, reducers),
+							];
+							break;
+						}
+						yield [
+							ASYNC_ITERABLE_STATUS_YIELD,
+							stringify(next.value, reducers),
+						];
+					}
+				} catch (cause) {
+					yield [ASYNC_ITERABLE_STATUS_ERROR, safeCause(cause)];
+				} finally {
+					reader.releaseLock();
+				}
+			});
+		},
 		AsyncIterable(v) {
 			if (!isAsyncIterable(v)) {
 				return false;
@@ -81,13 +112,13 @@ export async function* stringifyAsync(
 						if (next.done) {
 							yield [
 								ASYNC_ITERABLE_STATUS_RETURN,
-								stringify(next.value, revivers),
+								stringify(next.value, reducers),
 							];
 							break;
 						}
 						yield [
 							ASYNC_ITERABLE_STATUS_YIELD,
-							stringify(next.value, revivers),
+							stringify(next.value, reducers),
 						];
 					}
 				} catch (cause) {
@@ -107,7 +138,7 @@ export async function* stringifyAsync(
 			return registerAsync(async function* () {
 				try {
 					const next = await v;
-					yield [PROMISE_STATUS_FULFILLED, stringify(next, revivers)];
+					yield [PROMISE_STATUS_FULFILLED, stringify(next, reducers)];
 				} catch (cause) {
 					yield [PROMISE_STATUS_REJECTED, safeCause(cause)];
 				}
@@ -118,16 +149,16 @@ export async function* stringifyAsync(
 	/** @param cause The error cause to safely stringify - prevents interrupting full stream when error is unregistered */
 	function safeCause(cause: unknown) {
 		try {
-			return stringify(cause, revivers);
+			return stringify(cause, reducers);
 		} catch (err) {
 			if (!options.coerceError) {
 				throw err;
 			}
-			return stringify(options.coerceError(cause), revivers);
+			return stringify(options.coerceError(cause), reducers);
 		}
 	}
 
-	yield stringify(value, revivers) + "\n";
+	yield stringify(value, reducers) + "\n";
 
 	for await (const item of mergedIterables) {
 		yield "[" + item.join(",") + "]\n";
@@ -148,7 +179,7 @@ export async function unflattenAsync<T>(
 
 	function createController(id: ChunkIndex) {
 		let deferred = createDeferred();
-		type Chunk = [number, unknown] | Error;
+		type Chunk = [ChunkStatus, unknown] | Error;
 		const buffer: Chunk[] = [];
 
 		async function* generator() {
@@ -190,10 +221,43 @@ export async function unflattenAsync<T>(
 		return c;
 	}
 
-	const asyncRevivers: Record<string, (value: unknown) => unknown> = {
+	const revivers: Record<string, (value: unknown) => unknown> = {
 		...opts.revivers,
+
+		ReadableStream(idx) {
+			const c = getController(idx as ChunkIndex);
+
+			const iterable = c.generator();
+
+			return new ReadableStream({
+				async cancel() {
+					await iterable.return();
+				},
+				async pull(controller) {
+					const result = await iterable.next();
+
+					if (result.done) {
+						controller.close();
+						return;
+					}
+					const [status, value] = result.value;
+					switch (status) {
+						case ASYNC_ITERABLE_STATUS_RETURN:
+							controller.close();
+							break;
+						case ASYNC_ITERABLE_STATUS_YIELD:
+							controller.enqueue(value);
+							break;
+						case ASYNC_ITERABLE_STATUS_ERROR:
+							throw value;
+						default:
+							// eslint-disable-next-line @typescript-eslint/restrict-template-expressions
+							throw new Error(`Unknown async iterable status: ${status}`);
+					}
+				},
+			});
+		},
 		async *AsyncIterable(idx) {
-			assertNumber(idx);
 			const c = getController(idx as ChunkIndex);
 
 			for await (const item of c.generator()) {
@@ -210,7 +274,6 @@ export async function unflattenAsync<T>(
 			}
 		},
 		Promise(idx) {
-			assertNumber(idx);
 			const c = getController(idx as ChunkIndex);
 
 			const promise = (async () => {
@@ -242,7 +305,7 @@ export async function unflattenAsync<T>(
 	// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
 	const headValue: T = unflatten(
 		JSON.parse(head.value as string) as unknown[],
-		asyncRevivers,
+		revivers,
 	);
 
 	if (!head.done) {
@@ -259,10 +322,7 @@ export async function unflattenAsync<T>(
 					unknown[],
 				];
 
-				assertNumber(idx);
-				assertNumber(status);
-
-				getController(idx).push([status, unflatten(flattened, asyncRevivers)]);
+				getController(idx).push([status, unflatten(flattened, revivers)]);
 			}
 			// if we get here, we've finished the stream, let's go through all the enqueue map and enqueue a stream interrupt error
 			// this will only happen if receiving a malformatted stream
@@ -284,11 +344,7 @@ export async function unflattenAsync<T>(
 	return headValue;
 }
 
-function assertNumber(value: unknown): asserts value is number {
-	if (typeof value !== "number") {
-		throw new Error(`Expected number, got ${typeof value}`);
-	}
-}
-
 /* eslint-enable @typescript-eslint/no-unused-vars */
 /* eslint-enable @typescript-eslint/no-unnecessary-condition */
+/* eslint-enable n/no-unsupported-features/node-builtins */
+/* eslint-enable perfectionist/sort-objects */

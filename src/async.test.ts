@@ -65,6 +65,13 @@ async function waitError<TError extends Error = Error>(
 	throw new Error("Function did not throw");
 }
 
+async function* withDebug<T>(iterable: AsyncIterable<T>) {
+	for await (const value of iterable) {
+		yield value;
+		// console.log("yielding", value);
+	}
+}
+
 test("stringify and unflatten async", async () => {
 	const source = {
 		asyncIterable: (async function* () {
@@ -80,13 +87,6 @@ test("stringify and unflatten async", async () => {
 		})(),
 	};
 	const iterable = stringifyAsync(source);
-
-	async function* withDebug<T>(iterable: AsyncIterable<T>) {
-		for await (const value of iterable) {
-			yield value;
-			// console.log('yielding', value)
-		}
-	}
 
 	const result = await unflattenAsync<typeof source>(withDebug(iterable));
 
@@ -230,13 +230,6 @@ test("stringify and parse async values with errors", async () => {
 		},
 	});
 
-	async function* withDebug<T>(iterable: AsyncIterable<T>) {
-		for await (const value of iterable) {
-			yield value;
-			// console.log('yielding', value)
-		}
-	}
-
 	const result = await unflattenAsync<typeof source>(withDebug(iterable), {
 		revivers: {
 			MyCustomError: (value) => {
@@ -320,6 +313,38 @@ test("request/response-like readable streams", async () => {
 	}
 
 	expect(aggregate).toEqual([-0, 1, 2]);
+});
+
+test("stringify and unflatten ReadableStream", async () => {
+	const source = {
+		stream: new ReadableStream<string>({
+			async pull(controller) {
+				controller.enqueue("hello");
+				controller.enqueue("world");
+				controller.close();
+			},
+		}),
+	};
+
+	const iterable = stringifyAsync(source);
+	const result = await unflattenAsync<typeof source>(withDebug(iterable));
+
+	expect(result.stream).toBeInstanceOf(ReadableStream);
+
+	const reader = result.stream.getReader();
+	const chunks: string[] = [];
+
+	while (true) {
+		const res = await reader.read();
+
+		if (res.done) {
+			expect(res.value).toBeUndefined();
+			break;
+		}
+		chunks.push(res.value);
+	}
+
+	expect(chunks).toEqual(["hello", "world"]);
 });
 
 /* eslint-enable @typescript-eslint/no-unnecessary-condition */
