@@ -1,1 +1,1 @@
-export { unflattenAsync, stringifyAsync } from "./async.js";
+export { stringifyAsync, unflattenAsync } from "./async.js";
