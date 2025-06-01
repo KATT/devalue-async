@@ -43,3 +43,5 @@ test("stringify and parse async values", async () => {
 
 	expect(aggregate).toEqual([-0, 1, 2]);
 });
+
+/* eslint-enable @typescript-eslint/no-unnecessary-condition */

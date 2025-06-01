@@ -70,7 +70,7 @@ export async function parseAsync<T>(
 		}
 	}
 
-	const asyncRevivers: Record<string, (value: any) => any> = {
+	const asyncRevivers: Record<string, (value: unknown) => unknown> = {
 		...opts.revivers,
 		async *AsyncIterable(idx) {
 			assertNumber(idx);
@@ -101,6 +101,7 @@ export async function parseAsync<T>(
 					case PROMISE_STATUS_REJECTED:
 						throw value;
 					default:
+						// eslint-disable-next-line @typescript-eslint/restrict-template-expressions
 						throw new Error(`Unknown promise status: ${status}`);
 				}
 			}
@@ -109,8 +110,10 @@ export async function parseAsync<T>(
 
 	// will contain the head of the async iterable
 	const head = await iterator.next();
+
+	// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
 	const headValue: T = unflatten(
-		JSON.parse(head.value as string),
+		JSON.parse(head.value as string) as unknown[],
 		asyncRevivers,
 	);
 
@@ -122,7 +125,11 @@ export async function parseAsync<T>(
 					break;
 				}
 
-				const [idx, status, flattened] = JSON.parse(result.value);
+				const [idx, status, flattened] = JSON.parse(result.value) as [
+					number,
+					number,
+					unknown[],
+				];
 
 				assertNumber(idx);
 				assertNumber(status);
@@ -140,11 +147,7 @@ export async function parseAsync<T>(
 				enqueue(
 					cause instanceof Error
 						? cause
-						: new Error(
-								"Stream interrupted",
-								// @ts-ignore this is fine
-								{ cause },
-							),
+						: new Error("Stream interrupted", { cause }),
 				);
 			}
 		});
