@@ -205,22 +205,30 @@ export async function unflattenAsync<T>(
 				}
 			}
 		},
-		Promise: async (idx) => {
+		Promise: (idx) => {
 			assertNumber(idx);
 			const c = getController(idx);
 
-			for await (const item of c.generator()) {
-				const [status, value] = item;
-				switch (status) {
-					case PROMISE_STATUS_FULFILLED:
-						return value;
-					case PROMISE_STATUS_REJECTED:
-						throw value;
-					default:
-						// eslint-disable-next-line @typescript-eslint/restrict-template-expressions
-						throw new Error(`Unknown promise status: ${status}`);
+			const promise = (async () => {
+				for await (const item of c.generator()) {
+					const [status, value] = item;
+					switch (status) {
+						case PROMISE_STATUS_FULFILLED:
+							return value;
+						case PROMISE_STATUS_REJECTED:
+							throw value;
+						default:
+							// eslint-disable-next-line @typescript-eslint/restrict-template-expressions
+							throw new Error(`Unknown promise status: ${status}`);
+					}
 				}
-			}
+			})();
+
+			promise.catch(() => {
+				// prevent unhandled promise rejection warnings
+			});
+
+			return promise;
 		},
 	};
 
