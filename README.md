@@ -18,7 +18,7 @@
 ## Usage
 
 ```shell
-npm i devalue-async
+npm i devalue devalue-async
 ```
 
 🚧
