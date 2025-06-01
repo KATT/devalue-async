@@ -20,7 +20,7 @@
 
 ## About
 
-Like [devalue](https://github.com/Rich-Harris/devalue), but with superpowers for async values. Devalue Async extends the great `devalue` library to handle:
+Wrapper around [devalue](https://github.com/Rich-Harris/devalue) with ability to serialize and deserialize async values.
 
 - **Promises** (both resolved and rejected)
 - **Async Iterables** (async generators, async iterators)
@@ -291,10 +291,6 @@ Reconstructs a value from a serialized async iterable.
 - `options.revivers?`: Record of custom type revivers (same as devalue)
 
 **Returns:** `Promise<T>`
-
-## Acknowledgments
-
-This package builds upon the excellent work of [Rich Harris](https://github.com/Rich-Harris) and the [devalue](https://github.com/Rich-Harris/devalue) library. All the core serialization logic and many of the design principles come directly from devalue.
 
 ## Development
 
