@@ -1,11 +1,11 @@
 /* eslint-disable @typescript-eslint/require-await */
 /* eslint-disable n/no-unsupported-features/node-builtins */
 /* eslint-disable @typescript-eslint/no-unnecessary-condition */
-import { assert, expect, test } from "vitest";
+import { expect, test } from "vitest";
 
 import { stringifyAsync, unflattenAsync } from "./async.js";
 
-export async function* asyncIterableFrom<T>(
+async function* asyncIterableFrom<T>(
 	stream: ReadableStream<T>,
 ): AsyncIterable<T> {
 	const reader = stream.getReader();
@@ -26,7 +26,7 @@ export async function* asyncIterableFrom<T>(
 	}
 }
 
-export function readableStreamFrom<T>(iterable: AsyncIterable<T>) {
+function readableStreamFrom<T>(iterable: AsyncIterable<T>) {
 	const iterator = iterable[Symbol.asyncIterator]();
 
 	return new ReadableStream<T>({
