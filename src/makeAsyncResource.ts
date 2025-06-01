@@ -1,4 +1,4 @@
-// @ts-expect-error - polyfilling symbol
+// @ts-expect-error - polyfill for symbol
 Symbol.asyncDispose ??= Symbol();
 
 /**
