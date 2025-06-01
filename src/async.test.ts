@@ -148,7 +148,7 @@ test("stringify and parse async values with errors", async () => {
 	}
 
 	const result = await unflattenAsync<typeof source>(withDebug(iterable), {
-		revivers: {
+		reducers: {
 			MyCustomError: (value) => {
 				return new MyCustomError(value as string);
 			},

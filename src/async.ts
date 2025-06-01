@@ -128,7 +128,7 @@ export async function* stringifyAsync(
 export async function unflattenAsync<T>(
 	value: AsyncIterable<string>,
 	opts: {
-		revivers?: Record<string, (value: any) => any>;
+		reducers?: Record<string, (value: unknown) => unknown>;
 	} = {},
 ): Promise<T> {
 	const iterator = value[Symbol.asyncIterator]();
@@ -167,7 +167,7 @@ export async function unflattenAsync<T>(
 	}
 
 	const asyncRevivers: Record<string, (value: unknown) => unknown> = {
-		...opts.revivers,
+		...opts.reducers,
 		async *AsyncIterable(idx) {
 			assertNumber(idx);
 			const iterable = registerAsync(idx);
