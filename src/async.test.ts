@@ -1,7 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-/* eslint-disable @typescript-eslint/require-await */
-/* eslint-disable n/no-unsupported-features/node-builtins */
-/* eslint-disable @typescript-eslint/no-unnecessary-condition */
 import { expect, test } from "vitest";
 
 import { stringifyAsync, unflattenAsync } from "./async.js";
@@ -14,6 +10,7 @@ async function* asyncIterableFrom<T>(
 	const reader = stream.getReader();
 
 	try {
+		// eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
 		while (true) {
 			const res = await reader.read();
 
@@ -95,6 +92,7 @@ test("stringify and unflatten async", async () => {
 
 	const aggregate = [];
 	const iterator = result.asyncIterable[Symbol.asyncIterator]();
+	// eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
 	while (true) {
 		const next = await iterator.next();
 		if (next.done) {
@@ -304,6 +302,7 @@ test("request/response-like readable streams", async () => {
 
 	const aggregate = [];
 	const iterator = result.asyncIterable[Symbol.asyncIterator]();
+	// eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
 	while (true) {
 		const next = await iterator.next();
 		if (next.done) {
@@ -335,6 +334,7 @@ test("stringify and unflatten ReadableStream", async () => {
 	const reader = result.stream.getReader();
 	const chunks: string[] = [];
 
+	// eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
 	while (true) {
 		const res = await reader.read();
 
@@ -347,8 +347,3 @@ test("stringify and unflatten ReadableStream", async () => {
 
 	expect(chunks).toEqual(["hello", "world"]);
 });
-
-/* eslint-enable @typescript-eslint/no-unnecessary-condition */
-/* eslint-enable n/no-unsupported-features/node-builtins */
-/* eslint-enable @typescript-eslint/require-await */
-/* eslint-enable @typescript-eslint/no-explicit-any */

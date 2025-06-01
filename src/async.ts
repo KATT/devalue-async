@@ -1,8 +1,3 @@
-/* eslint-disable perfectionist/sort-objects */
-/* eslint-disable n/no-unsupported-features/node-builtins */
-/* eslint-disable @typescript-eslint/no-unused-vars */
-/* eslint-disable @typescript-eslint/no-unnecessary-condition */
-
 import { stringify, unflatten } from "devalue";
 
 import { createDeferred } from "./createDeferred.js";
@@ -69,6 +64,7 @@ export async function* stringifyAsync(
 		return idx;
 	}
 
+	/* eslint-disable perfectionist/sort-objects */
 	const reducers: Record<string, (value: unknown) => unknown> = {
 		...options.reducers,
 		ReadableStream(v) {
@@ -78,6 +74,7 @@ export async function* stringifyAsync(
 			return registerAsync(async function* () {
 				const reader = v.getReader();
 				try {
+					// eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
 					while (true) {
 						const next = await reader.read();
 
@@ -108,6 +105,7 @@ export async function* stringifyAsync(
 			return registerAsync(async function* () {
 				const iterator = v[Symbol.asyncIterator]();
 				try {
+					// eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
 					while (true) {
 						const next = await iterator.next();
 						if (next.done) {
@@ -147,6 +145,8 @@ export async function* stringifyAsync(
 		},
 	};
 
+	/* eslint-enable perfectionist/sort-objects */
+
 	/** @param cause The error cause to safely stringify - prevents interrupting full stream when error is unregistered */
 	function safeCause(cause: unknown) {
 		try {
@@ -185,6 +185,7 @@ export async function unflattenAsync<T>(
 
 		async function* generator() {
 			try {
+				// eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
 				while (true) {
 					await deferred.promise;
 					deferred = createDeferred();
@@ -221,6 +222,7 @@ export async function unflattenAsync<T>(
 		}
 		return c;
 	}
+	/* eslint-disable perfectionist/sort-objects */
 
 	const revivers: Record<string, (value: unknown) => unknown> = {
 		...opts.revivers,
@@ -300,6 +302,8 @@ export async function unflattenAsync<T>(
 		},
 	};
 
+	/* eslint-enable perfectionist/sort-objects */
+
 	// will contain the head of the async iterable
 	const head = await iterator.next();
 
@@ -311,6 +315,7 @@ export async function unflattenAsync<T>(
 
 	if (!head.done) {
 		(async () => {
+			// eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
 			while (true) {
 				const result = await iterator.next();
 				if (result.done) {
@@ -327,12 +332,12 @@ export async function unflattenAsync<T>(
 			}
 			// if we get here, we've finished the stream, let's go through all the enqueue map and enqueue a stream interrupt error
 			// this will only happen if receiving a malformatted stream
-			for (const [_, enqueue] of controllerMap) {
+			for (const [, enqueue] of controllerMap) {
 				enqueue.push(new Error("Stream interrupted: malformed stream"));
 			}
 		})().catch((cause: unknown) => {
 			// go through all the asyncMap and enqueue the error
-			for (const [_, enqueue] of controllerMap) {
+			for (const [, enqueue] of controllerMap) {
 				enqueue.push(
 					cause instanceof Error
 						? cause
@@ -344,8 +349,3 @@ export async function unflattenAsync<T>(
 
 	return headValue;
 }
-
-/* eslint-enable @typescript-eslint/no-unused-vars */
-/* eslint-enable @typescript-eslint/no-unnecessary-condition */
-/* eslint-enable n/no-unsupported-features/node-builtins */
-/* eslint-enable perfectionist/sort-objects */
