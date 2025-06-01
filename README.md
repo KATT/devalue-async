@@ -180,30 +180,37 @@ const result = await unflattenAsync<typeof source>(serialized, {
 
 ### Streaming Over HTTP
 
-Perfect for streaming server responses:
-
 ```ts
 // Server
-app.get("/api/data", async (req, res) => {
-	const data = {
+export type ApiResponse = ReturnType<typeof getData>;
+
+function getApiResponse() {
+	return {
 		metrics: getMetricsStream(), // ReadableStream
 		notifications: getNotificationStream(), // async iterable
-		user: await getUserData(),
+		user: getUserData(), // promise
 	};
+}
+
+app.get("/api/data", async (req, res) => {
+	const data = getApiResponse();
 
 	res.setHeader("Content-Type", "text/plain");
-
 	for await (const chunk of stringifyAsync(data)) {
 		res.write(chunk);
 	}
 	res.end();
 });
+```
 
+```ts
 // Client
+import type { ApiResponse } from "./server";
+
 const response = await fetch("/api/data");
-const result = await unflattenAsync(
-	response.body!.pipeThrough(new TextDecoderStream()),
-);
+const responseBody = response.body!.pipeThrough(new TextDecoderStream());
+
+const result = await unflattenAsync<ApiResponse>(responseBody);
 
 console.log(result.user);
 for await (const notification of result.notifications) {
