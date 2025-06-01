@@ -3,7 +3,7 @@ import { expect, test } from "vitest";
 
 import { stringifyAsync, unflattenAsync } from "./async.js";
 
-test("stringify and parse async values", async () => {
+test("stringify and unflatten async", async () => {
 	const source = {
 		asyncIterable: (async function* () {
 			await new Promise((resolve) => setTimeout(resolve, 0));
