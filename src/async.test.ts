@@ -345,7 +345,7 @@ test("async over the wire", async () => {
 	const port = (server.address() as AddressInfo).port;
 
 	{
-		const response = await fetch(`http://localhost:${port}`);
+		const response = await fetch(`http://localhost:${String(port)}`);
 
 		expect(response.ok).toBe(true);
 
@@ -369,7 +369,7 @@ test("async over the wire", async () => {
 		`);
 	}
 	{
-		const response = await fetch(`http://localhost:${port}`);
+		const response = await fetch(`http://localhost:${String(port)}`);
 
 		expect(response.ok).toBe(true);
 
