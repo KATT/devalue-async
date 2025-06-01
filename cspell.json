@@ -9,5 +9,5 @@
 		"node_modules",
 		"pnpm-lock.yaml"
 	],
-	"words": ["KATT"]
+	"words": ["KATT", "unflatten", "malformatted"]
 }
