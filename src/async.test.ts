@@ -98,7 +98,7 @@ test("stringify and parse async values with errors", async () => {
 
 	class UnregisteredError extends Error {
 		constructor(cause: unknown) {
-			const message = `Error: ${cause instanceof Error ? cause.message : String(cause)}`;
+			const message = cause instanceof Error ? cause.message : String(cause);
 			super(message, { cause });
 			this.name = "UnregisteredError";
 		}
@@ -162,8 +162,11 @@ test("stringify and parse async values with errors", async () => {
 		await result.unknownErrorDoesNotBlockStream;
 		throw new Error("expected error");
 	} catch (e) {
-		assert.instanceOf(e, UnregisteredError);
-		assert.equal(e.message, "Error: unknown error");
+		if (!(e instanceof Error)) {
+			throw new Error("expected error");
+		}
+		expect(e).toBeInstanceOf(UnregisteredError);
+		expect(e.message).toBe("unknown error");
 	}
 	try {
 		await result.promise;
