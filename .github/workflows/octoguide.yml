@@ -8,9 +8,7 @@ jobs:
           config: strict
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-
 name: OctoGuide
-
 
 on:
   discussion:
@@ -40,7 +38,6 @@ on:
     types:
       - edited
       - opened
-
 
 permissions:
   discussions: write

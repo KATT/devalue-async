@@ -20,6 +20,7 @@
 ```shell
 npm i devalue-async
 ```
+
 ```ts
 import { greet } from "devalue-async";
 
