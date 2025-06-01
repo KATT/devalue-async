@@ -1,30 +1,13 @@
+import http from "node:http";
+import { AddressInfo } from "node:net";
 import { expect, test } from "vitest";
 
 import { stringifyAsync, unflattenAsync } from "./async.js";
 
 type Constructor<T extends object = object> = new (...args: any[]) => T;
 
-async function* asyncIterableFrom<T>(
-	stream: ReadableStream<T>,
-): AsyncIterable<T> {
-	const reader = stream.getReader();
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-	try {
-		// eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-		while (true) {
-			const res = await reader.read();
-
-			if (res.done) {
-				return res.value;
-			}
-
-			yield res.value;
-		}
-	} finally {
-		reader.releaseLock();
-		await reader.cancel();
-	}
-}
 function readableStreamFrom<T>(iterable: AsyncIterable<T>) {
 	const iterator = iterable[Symbol.asyncIterator]();
 
@@ -71,7 +54,7 @@ async function* withDebug<T>(iterable: AsyncIterable<T>) {
 }
 
 test("stringify and unflatten async", async () => {
-	const source = {
+	const source = () => ({
 		asyncIterable: (async function* () {
 			await new Promise((resolve) => setTimeout(resolve, 0));
 			yield -0;
@@ -83,10 +66,11 @@ test("stringify and unflatten async", async () => {
 			await new Promise((resolve) => setTimeout(resolve, 0));
 			return "resolved promise";
 		})(),
-	};
-	const iterable = stringifyAsync(source);
+	});
+	type Source = ReturnType<typeof source>;
+	const iterable = stringifyAsync(source());
 
-	const result = await unflattenAsync<typeof source>(withDebug(iterable));
+	const result = await unflattenAsync<Source>(withDebug(iterable));
 
 	expect(await result.promise).toEqual("resolved promise");
 
@@ -121,15 +105,16 @@ test("stringify and parse async values with errors - simple", async () => {
 		}
 	}
 
-	const source = {
+	const source = () => ({
 		asyncIterable: (async function* () {
 			yield 0;
 			yield 1;
 			throw new MyCustomError("error in async iterable");
 		})(),
-	};
+	});
+	type Source = ReturnType<typeof source>;
 
-	const iterable = stringifyAsync(source, {
+	const iterable = stringifyAsync(source(), {
 		coerceError: (error) => {
 			return new UnregisteredError(error);
 		},
@@ -149,7 +134,7 @@ test("stringify and parse async values with errors - simple", async () => {
 		},
 	});
 
-	const result = await unflattenAsync<typeof source>(iterable, {
+	const result = await unflattenAsync<Source>(iterable, {
 		revivers: {
 			MyCustomError: (value) => {
 				return new MyCustomError(value as string);
@@ -193,7 +178,7 @@ test("stringify and parse async values with errors", async () => {
 		}
 	}
 
-	const source = {
+	const source = () => ({
 		asyncIterable: (async function* () {
 			await new Promise((resolve) => setTimeout(resolve, 0));
 			yield -0;
@@ -207,9 +192,10 @@ test("stringify and parse async values with errors", async () => {
 			await new Promise((resolve) => setTimeout(resolve, 0));
 			throw new Error("unknown error"); // <-- this is not handled by the reviver, but coerceError is provided
 		})(),
-	};
+	});
+	type Source = ReturnType<typeof source>;
 
-	const iterable = stringifyAsync(source, {
+	const iterable = stringifyAsync(source(), {
 		coerceError: (error) => {
 			return new UnregisteredError(error);
 		},
@@ -229,7 +215,7 @@ test("stringify and parse async values with errors", async () => {
 		},
 	});
 
-	const result = await unflattenAsync<typeof source>(withDebug(iterable), {
+	const result = await unflattenAsync<Source>(withDebug(iterable), {
 		revivers: {
 			MyCustomError: (value) => {
 				return new MyCustomError(value as string);
@@ -265,7 +251,7 @@ test("stringify and parse async values with errors", async () => {
 });
 
 test("request/response-like readable streams", async () => {
-	const source = {
+	const source = () => ({
 		asyncIterable: (async function* () {
 			yield -0;
 			yield 1;
@@ -275,27 +261,14 @@ test("request/response-like readable streams", async () => {
 		promise: (async () => {
 			return "resolved promise";
 		})(),
-	};
+	});
+	type Source = ReturnType<typeof source>;
 	const responseBodyStream = readableStreamFrom(
-		stringifyAsync(source),
+		stringifyAsync(source()),
 	).pipeThrough(new TextEncoderStream());
 
-	const result = await unflattenAsync<typeof source>(
-		(async function* () {
-			const iterable = asyncIterableFrom(
-				responseBodyStream.pipeThrough(new TextDecoderStream()),
-			);
-
-			let lineAggregate = "";
-			for await (const chunk of iterable) {
-				lineAggregate += chunk;
-				const parts = lineAggregate.split("\n");
-				lineAggregate = parts.pop() ?? "";
-				for (const part of parts) {
-					yield part;
-				}
-			}
-		})(),
+	const result = await unflattenAsync<Source>(
+		responseBodyStream.pipeThrough(new TextDecoderStream()),
 	);
 
 	expect(await result.promise).toEqual("resolved promise");
@@ -316,7 +289,7 @@ test("request/response-like readable streams", async () => {
 });
 
 test("stringify and unflatten ReadableStream", async () => {
-	const source = {
+	const source = () => ({
 		stream: new ReadableStream<string>({
 			async pull(controller) {
 				controller.enqueue("hello");
@@ -324,10 +297,11 @@ test("stringify and unflatten ReadableStream", async () => {
 				controller.close();
 			},
 		}),
-	};
+	});
+	type Source = ReturnType<typeof source>;
 
-	const iterable = stringifyAsync(source);
-	const result = await unflattenAsync<typeof source>(withDebug(iterable));
+	const iterable = stringifyAsync(source());
+	const result = await unflattenAsync<Source>(withDebug(iterable));
 
 	expect(result.stream).toBeInstanceOf(ReadableStream);
 
@@ -346,4 +320,70 @@ test("stringify and unflatten ReadableStream", async () => {
 	}
 
 	expect(chunks).toEqual(["hello", "world"]);
+});
+
+test("async over the wire", async () => {
+	const source = () => ({
+		asyncIterable: (async function* () {
+			yield "hello";
+			await sleep(1);
+			yield "world";
+		})(),
+	});
+	type Source = ReturnType<typeof source>;
+	const server = http.createServer((req, res) => {
+		(async () => {
+			for await (const chunk of stringifyAsync(source())) {
+				res.write(chunk);
+			}
+			res.end();
+		})().catch(console.error);
+	});
+
+	server.listen(0);
+
+	const port = (server.address() as AddressInfo).port;
+
+	{
+		const response = await fetch(`http://localhost:${String(port)}`);
+
+		expect(response.ok).toBe(true);
+
+		const bodyTextStream = response.body!.pipeThrough(new TextDecoderStream());
+
+		const chunks: string[] = [];
+		for await (const chunk of bodyTextStream) {
+			chunks.push(chunk);
+		}
+
+		const conc = chunks.join("").split("\n");
+
+		expect(conc).toMatchInlineSnapshot(`
+			[
+			  "[{"asyncIterable":1},["AsyncIterable",2],1]",
+			  "[1,0,["hello"]]",
+			  "[1,0,["world"]]",
+			  "[1,2,-1]",
+			  "",
+			]
+		`);
+	}
+	{
+		const response = await fetch(`http://localhost:${String(port)}`);
+
+		expect(response.ok).toBe(true);
+
+		const bodyTextStream = response.body!.pipeThrough(new TextDecoderStream());
+
+		const result = await unflattenAsync<Source>(bodyTextStream);
+
+		const aggregate: string[] = [];
+
+		for await (const chunk of result.asyncIterable) {
+			aggregate.push(chunk);
+		}
+
+		expect(aggregate).toEqual(["hello", "world"]);
+	}
+	server.close();
 });

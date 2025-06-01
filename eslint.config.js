@@ -60,6 +60,7 @@ export default tseslint.config(
 		extends: [tseslint.configs.disableTypeChecked],
 		files: ["**/*.md/*.ts"],
 		rules: {
+			"@typescript-eslint/no-non-null-assertion": "off",
 			"@typescript-eslint/no-unused-vars": "off",
 			"n/no-missing-import": "off",
 		},
@@ -69,6 +70,7 @@ export default tseslint.config(
 		files: ["**/*.test.*"],
 		rules: {
 			"@typescript-eslint/no-explicit-any": "off",
+			"@typescript-eslint/no-non-null-assertion": "off",
 			"@typescript-eslint/no-unsafe-assignment": "off",
 			"@typescript-eslint/no-unsafe-return": "off",
 			"@typescript-eslint/require-await": "off",
