@@ -145,7 +145,7 @@ When dealing with errors that don't have registered reducers, use `coerceError`:
 class GenericError extends Error {
 	constructor(cause: unknown) {
 		super("Generic error occurred", { cause });
-		console.log("GenericError", cause);
+		console.error("Encountered a unregistered error:", cause);
 		this.name = "GenericError";
 	}
 }

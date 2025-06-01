@@ -172,7 +172,7 @@ export async function unflattenAsync<T>(
 		revivers?: Record<string, (value: unknown) => unknown>;
 	} = {},
 ): Promise<T> {
-	const iterator = value[Symbol.asyncIterator]();
+	const iterator = lineAggregator(value)[Symbol.asyncIterator]();
 	const controllerMap = new Map<
 		ChunkIndex,
 		ReturnType<typeof createController>
@@ -348,4 +348,17 @@ export async function unflattenAsync<T>(
 	}
 
 	return headValue;
+}
+
+async function* lineAggregator(value: AsyncIterable<string>) {
+	let buffer = "";
+
+	for await (const line of value) {
+		buffer += line;
+		const parts = buffer.split("\n");
+		buffer = parts.pop() ?? "";
+		for (const part of parts) {
+			yield part;
+		}
+	}
 }

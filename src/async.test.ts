@@ -1,9 +1,12 @@
+import http from "node:http";
+import { AddressInfo } from "node:net";
 import { expect, test } from "vitest";
 
 import { stringifyAsync, unflattenAsync } from "./async.js";
 
 type Constructor<T extends object = object> = new (...args: any[]) => T;
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 async function* asyncIterableFrom<T>(
 	stream: ReadableStream<T>,
 ): AsyncIterable<T> {
@@ -346,4 +349,73 @@ test("stringify and unflatten ReadableStream", async () => {
 	}
 
 	expect(chunks).toEqual(["hello", "world"]);
+});
+
+test("async over the wire", async () => {
+	const source = () => ({
+		asyncIterable: (async function* () {
+			yield "hello";
+			await sleep(1);
+			yield "world";
+		})(),
+	});
+	type Source = ReturnType<typeof source>;
+	const server = http.createServer((req, res) => {
+		(async () => {
+			for await (const chunk of stringifyAsync(source())) {
+				res.write(chunk);
+			}
+			res.end();
+		})().catch(console.error);
+	});
+
+	server.listen(0);
+
+	const port = (server.address() as AddressInfo).port;
+
+	{
+		const response = await fetch(`http://localhost:${port}`);
+
+		expect(response.ok).toBe(true);
+
+		const bodyTextStream = response.body!.pipeThrough(new TextDecoderStream());
+
+		const chunks: string[] = [];
+		for await (const chunk of bodyTextStream) {
+			chunks.push(chunk);
+		}
+
+		const conc = chunks.join("").split("\n");
+
+		expect(conc).toMatchInlineSnapshot(`
+			[
+			  "[{"asyncIterable":1},["AsyncIterable",2],1]",
+			  "[1,0,["hello"]]",
+			  "[1,0,["world"]]",
+			  "[1,2,-1]",
+			  "",
+			]
+		`);
+	}
+	{
+		const response = await fetch(`http://localhost:${port}`);
+
+		expect(response.ok).toBe(true);
+
+		const bodyTextStream = response.body!.pipeThrough(new TextDecoderStream());
+
+		const result = await unflattenAsync<Source>(
+			asyncIterableFrom(bodyTextStream),
+		);
+
+		const aggregate: string[] = [];
+
+		for await (const chunk of result.asyncIterable) {
+			console.log({ chunk });
+			aggregate.push(chunk);
+		}
+
+		expect(aggregate).toEqual(["hello", "world"]);
+	}
+	server.close();
 });
