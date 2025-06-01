@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.1](https://github.com/KATT/devalue-async/compare/0.6.0...0.6.1) (2025-06-01)
+
+### Bug Fixes
+
+- add line aggregator ([#16](https://github.com/KATT/devalue-async/issues/16)) ([a472029](https://github.com/KATT/devalue-async/commit/a472029cee2c666a8f9ba591ccd12ef12eec7dc9))
+
 # [0.6.0](https://github.com/KATT/devalue-async/compare/0.5.0...0.6.0) (2025-06-01)
 
 ### Features
