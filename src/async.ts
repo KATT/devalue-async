@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable @typescript-eslint/no-unnecessary-condition */
 /* eslint-disable @typescript-eslint/no-explicit-any */
+
 import { stringify, unflatten } from "devalue";
 
 import { createDeferred } from "./createDeferred.js";
@@ -253,3 +254,7 @@ function assertNumber(value: unknown): asserts value is number {
 		throw new Error(`Expected number, got ${typeof value}`);
 	}
 }
+
+/* eslint-enable @typescript-eslint/no-explicit-any */
+/* eslint-enable @typescript-eslint/no-unused-vars */
+/* eslint-enable @typescript-eslint/no-unnecessary-condition */
