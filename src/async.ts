@@ -94,6 +94,7 @@ export async function* stringifyAsync(
 					yield [ASYNC_ITERABLE_STATUS_ERROR, safeCause(cause)];
 				} finally {
 					reader.releaseLock();
+					await reader.cancel();
 				}
 			});
 		},
