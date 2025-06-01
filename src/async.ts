@@ -7,6 +7,10 @@ import { stringify, unflatten } from "devalue";
 import { createDeferred } from "./createDeferred.js";
 import { mergeAsyncIterables } from "./mergeAsyncIterable.js";
 
+function chunkStatus<T extends number>(value: T): T & { __chunkStatus: true } {
+	return value as T & { __chunkStatus: true };
+}
+
 function isAsyncIterable(value: unknown): value is AsyncIterable<unknown> {
 	return (
 		typeof value === "object" && value !== null && Symbol.asyncIterator in value
@@ -22,12 +26,15 @@ function isPromise(value: unknown): value is Promise<unknown> {
 	);
 }
 
-const PROMISE_STATUS_FULFILLED = 0;
-const PROMISE_STATUS_REJECTED = 1;
+const PROMISE_STATUS_FULFILLED = chunkStatus(0);
+const PROMISE_STATUS_REJECTED = chunkStatus(1);
 
-const ASYNC_ITERABLE_STATUS_YIELD = 0;
-const ASYNC_ITERABLE_STATUS_ERROR = 1;
-const ASYNC_ITERABLE_STATUS_RETURN = 2;
+const ASYNC_ITERABLE_STATUS_YIELD = chunkStatus(0);
+const ASYNC_ITERABLE_STATUS_ERROR = chunkStatus(1);
+const ASYNC_ITERABLE_STATUS_RETURN = chunkStatus(2);
+
+type ChunkIndex = number & { __chunkIndex: true };
+type ChunkStatus = number & { __chunkStatus: true };
 
 export async function* stringifyAsync(
 	value: unknown,
@@ -38,12 +45,13 @@ export async function* stringifyAsync(
 ) {
 	let counter = 0;
 
-	const mergedIterables = mergeAsyncIterables<[number, number, string]>();
+	const mergedIterables =
+		mergeAsyncIterables<[ChunkIndex, ChunkStatus, string]>();
 
 	function registerAsync(
-		callback: (idx: number) => AsyncIterable<[number, string]>,
+		callback: (idx: ChunkIndex) => AsyncIterable<[ChunkStatus, string]>,
 	) {
-		const idx = ++counter;
+		const idx = ++counter as ChunkIndex;
 
 		const iterable = callback(idx);
 
@@ -132,13 +140,14 @@ export async function unflattenAsync<T>(
 	} = {},
 ): Promise<T> {
 	const iterator = value[Symbol.asyncIterator]();
-	const enqueueMap = new Map<number, ReturnType<typeof createEnqueueItem>>();
+	const controllerMap = new Map<number, ReturnType<typeof createController>>();
 
-	function createEnqueueItem(id: number) {
+	function createController(id: number) {
 		let deferred = createDeferred();
-		const buffer: ([number, unknown] | Error)[] = [];
+		type Chunk = [number, unknown] | Error;
+		const buffer: Chunk[] = [];
 
-		async function* shift() {
+		async function* generator() {
 			try {
 				while (true) {
 					await deferred.promise;
@@ -154,36 +163,36 @@ export async function unflattenAsync<T>(
 					}
 				}
 			} finally {
-				enqueueMap.delete(id);
+				controllerMap.delete(id);
 			}
 		}
 
 		return {
-			iterable: shift,
-			push: (v: [number, unknown] | Error) => {
+			generator,
+			push: (v: Chunk) => {
 				buffer.push(v);
 				deferred.resolve();
 			},
 		};
 	}
 
-	function getEnqueue(id: number) {
-		const queue = enqueueMap.get(id);
-		if (!queue) {
-			const queue = createEnqueueItem(id);
-			enqueueMap.set(id, queue);
+	function getController(id: number) {
+		const c = controllerMap.get(id);
+		if (!c) {
+			const queue = createController(id);
+			controllerMap.set(id, queue);
 			return queue;
 		}
-		return queue;
+		return c;
 	}
 
 	const asyncRevivers: Record<string, (value: unknown) => unknown> = {
 		...opts.reducers,
 		async *AsyncIterable(idx) {
 			assertNumber(idx);
-			const iterable = getEnqueue(idx).iterable();
+			const c = getController(idx);
 
-			for await (const item of iterable) {
+			for await (const item of c.generator()) {
 				const [status, value] = item;
 				switch (status) {
 					case ASYNC_ITERABLE_STATUS_RETURN:
@@ -198,9 +207,9 @@ export async function unflattenAsync<T>(
 		},
 		Promise: async (idx) => {
 			assertNumber(idx);
-			const iterable = getEnqueue(idx).iterable();
+			const c = getController(idx);
 
-			for await (const item of iterable) {
+			for await (const item of c.generator()) {
 				const [status, value] = item;
 				switch (status) {
 					case PROMISE_STATUS_FULFILLED:
@@ -241,16 +250,16 @@ export async function unflattenAsync<T>(
 				assertNumber(idx);
 				assertNumber(status);
 
-				getEnqueue(idx).push([status, unflatten(flattened, asyncRevivers)]);
+				getController(idx).push([status, unflatten(flattened, asyncRevivers)]);
 			}
 			// if we get here, we've finished the stream, let's go through all the enqueue map and enqueue a stream interrupt error
 			// this will only happen if receiving a malformatted stream
-			for (const [_, enqueue] of enqueueMap) {
+			for (const [_, enqueue] of controllerMap) {
 				enqueue.push(new Error("Stream interrupted: malformed stream"));
 			}
 		})().catch((cause: unknown) => {
 			// go through all the asyncMap and enqueue the error
-			for (const [_, enqueue] of enqueueMap) {
+			for (const [_, enqueue] of controllerMap) {
 				enqueue.push(
 					cause instanceof Error
 						? cause
