@@ -147,7 +147,7 @@ test("stringify and parse async values with errors - simple", async () => {
 		coerceError: (error) => {
 			return new UnregisteredError(error);
 		},
-		revivers: {
+		reducers: {
 			MyCustomError: (value) => {
 				if (value instanceof MyCustomError) {
 					return value.message;
@@ -164,7 +164,7 @@ test("stringify and parse async values with errors - simple", async () => {
 	});
 
 	const result = await unflattenAsync<typeof source>(iterable, {
-		reducers: {
+		revivers: {
 			MyCustomError: (value) => {
 				return new MyCustomError(value as string);
 			},
@@ -227,7 +227,7 @@ test("stringify and parse async values with errors", async () => {
 		coerceError: (error) => {
 			return new UnregisteredError(error);
 		},
-		revivers: {
+		reducers: {
 			MyCustomError: (value) => {
 				if (value instanceof MyCustomError) {
 					return value.message;
@@ -251,7 +251,7 @@ test("stringify and parse async values with errors", async () => {
 	}
 
 	const result = await unflattenAsync<typeof source>(withDebug(iterable), {
-		reducers: {
+		revivers: {
 			MyCustomError: (value) => {
 				return new MyCustomError(value as string);
 			},

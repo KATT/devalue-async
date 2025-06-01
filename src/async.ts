@@ -1,14 +1,15 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable @typescript-eslint/no-unnecessary-condition */
-/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { stringify, unflatten } from "devalue";
 
 import { createDeferred } from "./createDeferred.js";
 import { mergeAsyncIterables } from "./mergeAsyncIterable.js";
 
-function chunkStatus<T extends number>(value: T): T & { __chunkStatus: true } {
-	return value as T & { __chunkStatus: true };
+type Branded<T, Brand> = T & { __brand: Brand };
+
+function chunkStatus<T extends number>(value: T): Branded<T, "chunkStatus"> {
+	return value as Branded<T, "chunkStatus">;
 }
 
 function isAsyncIterable(value: unknown): value is AsyncIterable<unknown> {
@@ -33,14 +34,14 @@ const ASYNC_ITERABLE_STATUS_YIELD = chunkStatus(0);
 const ASYNC_ITERABLE_STATUS_ERROR = chunkStatus(1);
 const ASYNC_ITERABLE_STATUS_RETURN = chunkStatus(2);
 
-type ChunkIndex = number & { __chunkIndex: true };
-type ChunkStatus = number & { __chunkStatus: true };
+type ChunkIndex = Branded<number, "chunkIndex">;
+type ChunkStatus = Branded<number, "chunkStatus">;
 
 export async function* stringifyAsync(
 	value: unknown,
 	options: {
 		coerceError?: (cause: unknown) => unknown;
-		revivers?: Record<string, (value: any) => any>;
+		reducers?: Record<string, (value: unknown) => unknown>;
 	} = {},
 ) {
 	let counter = 0;
@@ -67,8 +68,8 @@ export async function* stringifyAsync(
 	}
 
 	const revivers: Record<string, (value: unknown) => unknown> = {
-		...options.revivers,
-		AsyncIterable: (v) => {
+		...options.reducers,
+		AsyncIterable(v) {
 			if (!isAsyncIterable(v)) {
 				return false;
 			}
@@ -96,7 +97,7 @@ export async function* stringifyAsync(
 				}
 			});
 		},
-		Promise: (v) => {
+		Promise(v) {
 			if (!isPromise(v)) {
 				return false;
 			}
@@ -136,13 +137,16 @@ export async function* stringifyAsync(
 export async function unflattenAsync<T>(
 	value: AsyncIterable<string>,
 	opts: {
-		reducers?: Record<string, (value: unknown) => unknown>;
+		revivers?: Record<string, (value: unknown) => unknown>;
 	} = {},
 ): Promise<T> {
 	const iterator = value[Symbol.asyncIterator]();
-	const controllerMap = new Map<number, ReturnType<typeof createController>>();
+	const controllerMap = new Map<
+		ChunkIndex,
+		ReturnType<typeof createController>
+	>();
 
-	function createController(id: number) {
+	function createController(id: ChunkIndex) {
 		let deferred = createDeferred();
 		type Chunk = [number, unknown] | Error;
 		const buffer: Chunk[] = [];
@@ -176,7 +180,7 @@ export async function unflattenAsync<T>(
 		};
 	}
 
-	function getController(id: number) {
+	function getController(id: ChunkIndex) {
 		const c = controllerMap.get(id);
 		if (!c) {
 			const queue = createController(id);
@@ -187,10 +191,10 @@ export async function unflattenAsync<T>(
 	}
 
 	const asyncRevivers: Record<string, (value: unknown) => unknown> = {
-		...opts.reducers,
+		...opts.revivers,
 		async *AsyncIterable(idx) {
 			assertNumber(idx);
-			const c = getController(idx);
+			const c = getController(idx as ChunkIndex);
 
 			for await (const item of c.generator()) {
 				const [status, value] = item;
@@ -205,9 +209,9 @@ export async function unflattenAsync<T>(
 				}
 			}
 		},
-		Promise: (idx) => {
+		Promise(idx) {
 			assertNumber(idx);
-			const c = getController(idx);
+			const c = getController(idx as ChunkIndex);
 
 			const promise = (async () => {
 				for await (const item of c.generator()) {
@@ -250,8 +254,8 @@ export async function unflattenAsync<T>(
 				}
 
 				const [idx, status, flattened] = JSON.parse(result.value) as [
-					number,
-					number,
+					ChunkIndex,
+					ChunkStatus,
 					unknown[],
 				];
 
@@ -286,6 +290,5 @@ function assertNumber(value: unknown): asserts value is number {
 	}
 }
 
-/* eslint-enable @typescript-eslint/no-explicit-any */
 /* eslint-enable @typescript-eslint/no-unused-vars */
 /* eslint-enable @typescript-eslint/no-unnecessary-condition */
