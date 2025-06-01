@@ -29,7 +29,103 @@ const ASYNC_ITERABLE_STATUS_YIELD = 0;
 const ASYNC_ITERABLE_STATUS_ERROR = 1;
 const ASYNC_ITERABLE_STATUS_RETURN = 2;
 
-export async function parseAsync<T>(
+export async function* stringifyAsync(
+	value: unknown,
+	options: {
+		coerceError?: (cause: unknown) => unknown;
+		revivers?: Record<string, (value: any) => any>;
+	} = {},
+) {
+	let counter = 0;
+
+	const mergedIterables = mergeAsyncIterables<[number, number, string]>();
+
+	function registerAsync(
+		callback: (idx: number) => AsyncIterable<[number, string]>,
+	) {
+		const idx = ++counter;
+
+		const iterable = callback(idx);
+
+		mergedIterables.add(
+			(async function* () {
+				for await (const item of iterable) {
+					yield [idx, ...item];
+				}
+			})(),
+		);
+
+		return idx;
+	}
+
+	const revivers: Record<string, (value: unknown) => unknown> = {
+		...options.revivers,
+		AsyncIterable: (v) => {
+			if (!isAsyncIterable(v)) {
+				return false;
+			}
+			return registerAsync(async function* () {
+				const iterator = v[Symbol.asyncIterator]();
+				try {
+					while (true) {
+						const next = await iterator.next();
+						if (next.done) {
+							yield [
+								ASYNC_ITERABLE_STATUS_RETURN,
+								stringify(next.value, revivers),
+							];
+							break;
+						}
+						yield [
+							ASYNC_ITERABLE_STATUS_YIELD,
+							stringify(next.value, revivers),
+						];
+					}
+				} catch (cause) {
+					yield [ASYNC_ITERABLE_STATUS_ERROR, safeCause(cause)];
+				} finally {
+					await iterator.return?.();
+				}
+			});
+		},
+		Promise: (v) => {
+			if (!isPromise(v)) {
+				return false;
+			}
+			v.catch(() => {
+				// prevent unhandled promise rejection
+			});
+			return registerAsync(async function* () {
+				try {
+					const next = await v;
+					yield [PROMISE_STATUS_FULFILLED, stringify(next, revivers)];
+				} catch (cause) {
+					yield [PROMISE_STATUS_REJECTED, safeCause(cause)];
+				}
+			});
+		},
+	};
+
+	/** @param cause The error cause to safely stringify - prevents interrupting full stream when error is unregistered */
+	function safeCause(cause: unknown) {
+		try {
+			return stringify(cause, revivers);
+		} catch (err) {
+			if (!options.coerceError) {
+				throw err;
+			}
+			return stringify(options.coerceError(cause), revivers);
+		}
+	}
+
+	yield stringify(value, revivers) + "\n";
+
+	for await (const item of mergedIterables) {
+		yield "[" + item.join(",") + "]\n";
+	}
+}
+
+export async function unflattenAsync<T>(
 	value: AsyncIterable<string>,
 	opts: {
 		revivers?: Record<string, (value: any) => any>;
@@ -154,102 +250,6 @@ export async function parseAsync<T>(
 	}
 
 	return headValue;
-}
-
-export async function* stringifyAsync(
-	value: unknown,
-	options: {
-		coerceError?: (cause: unknown) => unknown;
-		revivers?: Record<string, (value: any) => any>;
-	} = {},
-) {
-	let counter = 0;
-
-	const mergedIterables = mergeAsyncIterables<[number, number, string]>();
-
-	function registerAsync(
-		callback: (idx: number) => AsyncIterable<[number, string]>,
-	) {
-		const idx = ++counter;
-
-		const iterable = callback(idx);
-
-		mergedIterables.add(
-			(async function* () {
-				for await (const item of iterable) {
-					yield [idx, ...item];
-				}
-			})(),
-		);
-
-		return idx;
-	}
-
-	const revivers: Record<string, (value: unknown) => unknown> = {
-		...options.revivers,
-		AsyncIterable: (v) => {
-			if (!isAsyncIterable(v)) {
-				return false;
-			}
-			return registerAsync(async function* () {
-				const iterator = v[Symbol.asyncIterator]();
-				try {
-					while (true) {
-						const next = await iterator.next();
-						if (next.done) {
-							yield [
-								ASYNC_ITERABLE_STATUS_RETURN,
-								stringify(next.value, revivers),
-							];
-							break;
-						}
-						yield [
-							ASYNC_ITERABLE_STATUS_YIELD,
-							stringify(next.value, revivers),
-						];
-					}
-				} catch (cause) {
-					yield [ASYNC_ITERABLE_STATUS_ERROR, safeCause(cause)];
-				} finally {
-					await iterator.return?.();
-				}
-			});
-		},
-		Promise: (v) => {
-			if (!isPromise(v)) {
-				return false;
-			}
-			v.catch(() => {
-				// prevent unhandled promise rejection
-			});
-			return registerAsync(async function* () {
-				try {
-					const next = await v;
-					yield [PROMISE_STATUS_FULFILLED, stringify(next, revivers)];
-				} catch (cause) {
-					yield [PROMISE_STATUS_REJECTED, safeCause(cause)];
-				}
-			});
-		},
-	};
-
-	/** @param cause The error cause to safely stringify - prevents interrupting full stream when error is unregistered */
-	function safeCause(cause: unknown) {
-		try {
-			return stringify(cause, revivers);
-		} catch (err) {
-			if (!options.coerceError) {
-				throw err;
-			}
-			return stringify(options.coerceError(cause), revivers);
-		}
-	}
-
-	yield stringify(value, revivers) + "\n";
-
-	for await (const item of mergedIterables) {
-		yield "[" + item.join(",") + "]\n";
-	}
 }
 
 function assertNumber(value: unknown): asserts value is number {

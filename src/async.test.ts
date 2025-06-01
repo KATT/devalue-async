@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unnecessary-condition */
 import { expect, test } from "vitest";
 
-import { parseAsync, stringifyAsync } from "./async.js";
+import { stringifyAsync, unflattenAsync } from "./async.js";
 
 test("stringify and parse async values", async () => {
 	const source = {
@@ -26,7 +26,7 @@ test("stringify and parse async values", async () => {
 		}
 	}
 
-	const result = await parseAsync<typeof source>(withDebug(iterable));
+	const result = await unflattenAsync<typeof source>(withDebug(iterable));
 
 	expect(await result.promise).toBe("resolved promise");
 
