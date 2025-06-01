@@ -1,6 +1,6 @@
 <h1 align="center">Devalue Async</h1>
 
-<p align="center">Extension of the great devalue-package with ability to handle async values</p>
+<p align="center">Extension of the great <a href="https://github.com/Rich-Harris/devalue">devalue</a> package with ability to handle async values</p>
 
 <p align="center">
 	<!-- prettier-ignore-start -->
@@ -21,11 +21,7 @@
 npm i devalue-async
 ```
 
-```ts
-import { greet } from "devalue-async";
-
-greet("Hello, world! 💖");
-```
+🚧
 
 ## Development
 
