@@ -1,6 +1,6 @@
 {
 	"name": "devalue-async",
-	"version": "0.0.0",
+	"version": "0.1.0",
 	"description": "Extension of the great devalue-package with ability to handle async values",
 	"repository": {
 		"type": "git",
