@@ -137,7 +137,8 @@ test("stringify and parse async values with errors - simple", async () => {
 
 	const source = {
 		asyncIterable: (async function* () {
-			yield -0;
+			yield 0;
+			yield 1;
 			throw new MyCustomError("error in async iterable");
 		})(),
 	};
@@ -162,14 +163,7 @@ test("stringify and parse async values with errors - simple", async () => {
 		},
 	});
 
-	async function* withDebug<T>(iterable: AsyncIterable<T>) {
-		for await (const value of iterable) {
-			yield value;
-			// console.log('yielding', value)
-		}
-	}
-
-	const result = await unflattenAsync<typeof source>(withDebug(iterable), {
+	const result = await unflattenAsync<typeof source>(iterable, {
 		reducers: {
 			MyCustomError: (value) => {
 				return new MyCustomError(value as string);
@@ -181,19 +175,23 @@ test("stringify and parse async values with errors - simple", async () => {
 	});
 
 	const aggregate: number[] = [];
+
+	// wait 10ms
+	await new Promise((resolve) => setTimeout(resolve, 10));
+
 	const err = await waitError(
 		(async () => {
 			for await (const value of result.asyncIterable) {
 				aggregate.push(value);
 			}
 		})(),
+		MyCustomError,
 	);
-	expect(err).toBeInstanceOf(MyCustomError);
 	expect(err.message).toEqual("error in async iterable");
-	expect(aggregate).toEqual([-0]);
+	expect(aggregate).toEqual([0, 1]);
 });
 
-test.only("stringify and parse async values with errors", async () => {
+test("stringify and parse async values with errors", async () => {
 	class MyCustomError extends Error {
 		constructor(message: string) {
 			super(message);

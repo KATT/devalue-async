@@ -132,45 +132,56 @@ export async function unflattenAsync<T>(
 	} = {},
 ): Promise<T> {
 	const iterator = value[Symbol.asyncIterator]();
-	const enqueueMap = new Map<number, (v: [number, unknown] | Error) => void>();
+	const enqueueMap = new Map<number, ReturnType<typeof createEnqueueItem>>();
 
-	/**
-	 * @param id
-	 * @returns
-	 */
-	async function* registerAsync(id: number): AsyncIterable<[number, unknown]> {
+	function createEnqueueItem(id: number) {
+		let deferred = createDeferred();
 		const buffer: ([number, unknown] | Error)[] = [];
 
-		let deferred = createDeferred();
+		async function* shift() {
+			try {
+				while (true) {
+					await deferred.promise;
+					deferred = createDeferred();
 
-		enqueueMap.set(id, (v) => {
-			buffer.push(v);
-			deferred.resolve();
-		});
-		try {
-			while (true) {
-				await deferred.promise;
-				deferred = createDeferred();
-
-				while (buffer.length) {
-					// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-					const value = buffer.shift()!;
-					if (value instanceof Error) {
-						throw value;
+					while (buffer.length) {
+						// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+						const value = buffer.shift()!;
+						if (value instanceof Error) {
+							throw value;
+						}
+						yield value;
 					}
-					yield value;
 				}
+			} finally {
+				enqueueMap.delete(id);
 			}
-		} finally {
-			enqueueMap.delete(id);
 		}
+
+		return {
+			iterable: shift,
+			push: (v: [number, unknown] | Error) => {
+				buffer.push(v);
+				deferred.resolve();
+			},
+		};
+	}
+
+	function getEnqueue(id: number) {
+		const queue = enqueueMap.get(id);
+		if (!queue) {
+			const queue = createEnqueueItem(id);
+			enqueueMap.set(id, queue);
+			return queue;
+		}
+		return queue;
 	}
 
 	const asyncRevivers: Record<string, (value: unknown) => unknown> = {
 		...opts.reducers,
 		async *AsyncIterable(idx) {
 			assertNumber(idx);
-			const iterable = registerAsync(idx);
+			const iterable = getEnqueue(idx).iterable();
 
 			for await (const item of iterable) {
 				const [status, value] = item;
@@ -187,7 +198,7 @@ export async function unflattenAsync<T>(
 		},
 		Promise: async (idx) => {
 			assertNumber(idx);
-			const iterable = registerAsync(idx);
+			const iterable = getEnqueue(idx).iterable();
 
 			for await (const item of iterable) {
 				const [status, value] = item;
@@ -230,17 +241,17 @@ export async function unflattenAsync<T>(
 				assertNumber(idx);
 				assertNumber(status);
 
-				enqueueMap.get(idx)?.([status, unflatten(flattened, asyncRevivers)]);
+				getEnqueue(idx).push([status, unflatten(flattened, asyncRevivers)]);
 			}
 			// if we get here, we've finished the stream, let's go through all the enqueue map and enqueue a stream interrupt error
 			// this will only happen if receiving a malformatted stream
 			for (const [_, enqueue] of enqueueMap) {
-				enqueue(new Error("Stream interrupted: malformed stream"));
+				enqueue.push(new Error("Stream interrupted: malformed stream"));
 			}
 		})().catch((cause: unknown) => {
 			// go through all the asyncMap and enqueue the error
 			for (const [_, enqueue] of enqueueMap) {
-				enqueue(
+				enqueue.push(
 					cause instanceof Error
 						? cause
 						: new Error("Stream interrupted", { cause }),
