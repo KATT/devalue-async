@@ -5,6 +5,8 @@ import { expect, test } from "vitest";
 
 import { stringifyAsync, unflattenAsync } from "./async.js";
 
+type Constructor<T extends object = object> = new (...args: any[]) => T;
+
 async function* asyncIterableFrom<T>(
 	stream: ReadableStream<T>,
 ): AsyncIterable<T> {
@@ -25,10 +27,6 @@ async function* asyncIterableFrom<T>(
 		await reader.cancel();
 	}
 }
-
-const run = <TResult>(fn: () => TResult): TResult => fn();
-
-type Constructor<T extends object = object> = new (...args: any[]) => T;
 function readableStreamFrom<T>(iterable: AsyncIterable<T>) {
 	const iterator = iterable[Symbol.asyncIterator]();
 
@@ -51,15 +49,7 @@ function readableStreamFrom<T>(iterable: AsyncIterable<T>) {
 }
 
 async function waitError<TError extends Error = Error>(
-	/**
-	 * Function callback or promise that you expect will throw
-	 */
 	fnOrPromise: (() => unknown) | Promise<unknown>,
-
-	/**
-	 * Force error constructor to be of specific type
-	 * @default Error
-	 */
 	errorConstructor?: Constructor<TError>,
 ): Promise<TError> {
 	try {
@@ -69,10 +59,7 @@ async function waitError<TError extends Error = Error>(
 			await fnOrPromise;
 		}
 	} catch (cause) {
-		expect(cause).toBeInstanceOf(Error);
-		if (errorConstructor) {
-			expect((cause as Error).name).toBe(errorConstructor.name);
-		}
+		expect(cause).toBeInstanceOf(errorConstructor ?? Error);
 		return cause as TError;
 	}
 	throw new Error("Function did not throw");
