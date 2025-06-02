@@ -71,7 +71,7 @@ function createManagedIterator<TYield, TReturn>(
  * @template TYield The type of values yielded by the input iterables
  */
 export function mergeAsyncIterables<TYield>(): MergedAsyncIterables<TYield> {
-	let state: "done" | "idle" | "pending" = "idle";
+	let iterating = false;
 	let flushSignal = createDeferred();
 
 	/**
@@ -90,15 +90,7 @@ export function mergeAsyncIterables<TYield>(): MergedAsyncIterables<TYield> {
 	][] = [];
 
 	function initIterable(iterable: AsyncIterable<TYield, void, unknown>) {
-		if (state !== "pending") {
-			// shouldn't happen
-			return;
-		}
 		const iterator = createManagedIterator(iterable, (result) => {
-			if (state !== "pending") {
-				// shouldn't happen
-				return;
-			}
 			switch (result.status) {
 				case "error":
 					buffer.push([iterator, result]);
@@ -119,28 +111,44 @@ export function mergeAsyncIterables<TYield>(): MergedAsyncIterables<TYield> {
 
 	return {
 		add(iterable: AsyncIterable<TYield, void, unknown>) {
-			switch (state) {
-				case "done": {
-					// shouldn't happen
-					break;
-				}
-				case "idle":
-					iterables.push(iterable);
-					break;
-				case "pending":
-					initIterable(iterable);
-					break;
+			if (iterating) {
+				initIterable(iterable);
+			} else {
+				iterables.push(iterable);
 			}
 		},
 		async *[Symbol.asyncIterator]() {
-			if (state !== "idle") {
+			if (iterating) {
 				throw new Error("Cannot iterate twice");
 			}
-			state = "pending";
+			iterating = true;
 
-			// eslint-disable-next-line @typescript-eslint/no-unused-vars
-			await using _finally = makeAsyncResource({}, async () => {
-				state = "done";
+			try {
+				while (iterables.length > 0) {
+					// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+					initIterable(iterables.shift()!);
+				}
+
+				while (iterators.size > 0) {
+					await flushSignal.promise;
+
+					while (buffer.length > 0) {
+						// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+						const [iterator, result] = buffer.shift()!;
+
+						switch (result.status) {
+							case "yield":
+								yield result.value;
+								iterator.pull();
+								break;
+							case "error":
+								throw result.error;
+						}
+					}
+					flushSignal = createDeferred();
+				}
+			} finally {
+				iterating = false;
 
 				const errors: unknown[] = [];
 				await Promise.all(
@@ -157,32 +165,9 @@ export function mergeAsyncIterables<TYield>(): MergedAsyncIterables<TYield> {
 				flushSignal.resolve();
 
 				if (errors.length > 0) {
+					// eslint-disable-next-line no-unsafe-finally
 					throw new AggregateError(errors);
 				}
-			});
-
-			while (iterables.length > 0) {
-				// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-				initIterable(iterables.shift()!);
-			}
-
-			while (iterators.size > 0) {
-				await flushSignal.promise;
-
-				while (buffer.length > 0) {
-					// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-					const [iterator, result] = buffer.shift()!;
-
-					switch (result.status) {
-						case "yield":
-							yield result.value;
-							iterator.pull();
-							break;
-						case "error":
-							throw result.error;
-					}
-				}
-				flushSignal = createDeferred();
 			}
 		},
 	};
