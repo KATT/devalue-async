@@ -227,17 +227,15 @@ export async function* stringifyAsync(
 		reducers?: Record<string, (value: unknown) => unknown>;
 	} = {},
 ) {
-	let counter = 0;
+	let chunkIndex = 0 as ChunkIndex;
 
 	const mergedIterables =
 		mergeAsyncIterables<[ChunkIndex, ChunkStatus, string]>();
 
-	function registerAsync(
-		callback: (idx: ChunkIndex) => AsyncIterable<[ChunkStatus, string]>,
-	) {
-		const idx = ++counter as ChunkIndex;
+	function registerAsync(callback: () => AsyncIterable<[ChunkStatus, string]>) {
+		const idx = ++chunkIndex as ChunkIndex;
 
-		const iterable = callback(idx);
+		const iterable = callback();
 
 		mergedIterables.add(
 			(async function* () {

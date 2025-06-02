@@ -343,3 +343,40 @@ test.fails("todo(?) - referential integrity across chunks", async () => {
 
 	expect(aggregate.items[0]).toBe(aggregate.items[1]);
 });
+
+test("custom type", async () => {
+	class Vector {
+		constructor(
+			public x: number,
+			public y: number,
+		) {}
+	}
+
+	const source = () => ({
+		vectors: (async function* () {
+			yield new Vector(1, 2);
+			yield new Vector(3, 4);
+		})(),
+	});
+	type Source = ReturnType<typeof source>;
+
+	const iterable = stringifyAsync(source(), {
+		reducers: {
+			Vector: (value) => value instanceof Vector && [value.x, value.y],
+		},
+	});
+
+	const result = await parseAsync<Source>(iterable, {
+		revivers: {
+			Vector: (value) => {
+				const [x, y] = value as [number, number];
+				return new Vector(x, y);
+			},
+		},
+	});
+
+	const aggregate = await aggregateAsyncIterable(result.vectors);
+
+	expect(aggregate.ok).toBe(true);
+	expect(aggregate.items).toEqual([new Vector(1, 2), new Vector(3, 4)]);
+});
