@@ -1,5 +1,11 @@
 # Changelog
 
+# [0.7.0](https://github.com/KATT/devalue-async/compare/0.6.2...0.7.0) (2025-06-02)
+
+### Features
+
+- rename `unflattenAsync` -> `parseAsync` ([#26](https://github.com/KATT/devalue-async/issues/26)) ([8ed468a](https://github.com/KATT/devalue-async/commit/8ed468a7a6d5d928d800d36a32cef5af73594b1c)), closes [#000](https://github.com/KATT/devalue-async/issues/000)
+
 ## [0.6.2](https://github.com/KATT/devalue-async/compare/0.6.1...0.6.2) (2025-06-02)
 
 ### Bug Fixes
