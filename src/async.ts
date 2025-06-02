@@ -191,31 +191,29 @@ export async function parseAsync<T>(
 		}
 	}
 
-	if (!head.done) {
-		(async () => {
-			// eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-			while (true) {
-				const result = await iterator.next();
-				if (result.done) {
-					break;
-				}
-
-				const [idx, status, flattened] = JSON.parse(result.value) as [
-					ChunkIndex,
-					ChunkStatus,
-					unknown[],
-				];
-
-				getController(idx).push([status, unflatten(flattened, revivers)]);
+	(async () => {
+		// eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+		while (true) {
+			const result = await iterator.next();
+			if (result.done) {
+				break;
 			}
-			// if we get here, we've finished the stream, let's go through all the enqueue map and enqueue a stream interrupt error
-			// this will only happen if receiving a malformatted stream
-			cleanup();
-		})().catch((cause: unknown) => {
-			// go through all the asyncMap and enqueue the error
-			cleanup(cause);
-		});
-	}
+
+			const [idx, status, flattened] = JSON.parse(result.value) as [
+				ChunkIndex,
+				ChunkStatus,
+				unknown[],
+			];
+
+			getController(idx).push([status, unflatten(flattened, revivers)]);
+		}
+		// if we get here, we've finished the stream, let's go through all the enqueue map and enqueue a stream interrupt error
+		// this will only happen if receiving a malformatted stream
+		cleanup();
+	})().catch((cause: unknown) => {
+		// go through all the asyncMap and enqueue the error
+		cleanup(cause);
+	});
 
 	return headValue;
 }
