@@ -2,7 +2,7 @@ import http from "node:http";
 import { AddressInfo } from "node:net";
 import { expect, test } from "vitest";
 
-import { stringifyAsync, unflattenAsync } from "./async.js";
+import { parseAsync, stringifyAsync } from "./async.js";
 import { aggregateAsyncIterable } from "./test.utils.js";
 
 type Constructor<T extends object = object> = new (...args: any[]) => T;
@@ -71,7 +71,7 @@ test("stringify and unflatten async", async () => {
 	type Source = ReturnType<typeof source>;
 	const iterable = stringifyAsync(source());
 
-	const result = await unflattenAsync<Source>(withDebug(iterable));
+	const result = await parseAsync<Source>(withDebug(iterable));
 
 	expect(await result.promise).toEqual("resolved promise");
 
@@ -127,7 +127,7 @@ test("stringify and parse async values with errors - simple", async () => {
 		},
 	});
 
-	const result = await unflattenAsync<Source>(iterable, {
+	const result = await parseAsync<Source>(iterable, {
 		revivers: {
 			MyCustomError: (value) => {
 				return new MyCustomError(value as string);
@@ -199,7 +199,7 @@ test("stringify and parse async values with errors", async () => {
 		},
 	});
 
-	const result = await unflattenAsync<Source>(withDebug(iterable), {
+	const result = await parseAsync<Source>(withDebug(iterable), {
 		revivers: {
 			MyCustomError: (value) => {
 				return new MyCustomError(value as string);
@@ -249,7 +249,7 @@ test("request/response-like readable streams", async () => {
 		stringifyAsync(source()),
 	).pipeThrough(new TextEncoderStream());
 
-	const result = await unflattenAsync<Source>(
+	const result = await parseAsync<Source>(
 		responseBodyStream.pipeThrough(new TextDecoderStream()),
 	);
 
@@ -275,7 +275,7 @@ test("stringify and unflatten ReadableStream", async () => {
 	type Source = ReturnType<typeof source>;
 
 	const iterable = stringifyAsync(source());
-	const result = await unflattenAsync<Source>(withDebug(iterable));
+	const result = await parseAsync<Source>(withDebug(iterable));
 
 	expect(result.stream).toBeInstanceOf(ReadableStream);
 
@@ -352,7 +352,7 @@ test("async over the wire", async () => {
 
 		const bodyTextStream = response.body!.pipeThrough(new TextDecoderStream());
 
-		const result = await unflattenAsync<Source>(bodyTextStream);
+		const result = await parseAsync<Source>(bodyTextStream);
 
 		const aggregate = await aggregateAsyncIterable(result.asyncIterable);
 
@@ -376,7 +376,7 @@ test("dedupe", async () => {
 	type Source = ReturnType<typeof source>;
 
 	const iterable = stringifyAsync(source());
-	const result = await unflattenAsync<Source>(iterable);
+	const result = await parseAsync<Source>(iterable);
 
 	expect(result.promise1).toStrictEqual(result.promise2);
 
@@ -396,7 +396,7 @@ test.fails("todo(?) - referential integrity across chunks", async () => {
 	});
 	type Source = ReturnType<typeof source>;
 
-	const result = await unflattenAsync<Source>(stringifyAsync(source()));
+	const result = await parseAsync<Source>(stringifyAsync(source()));
 
 	const aggregate = await aggregateAsyncIterable(result.asyncIterable);
 

@@ -34,139 +34,7 @@ const ASYNC_ITERABLE_STATUS_RETURN = chunkStatus(2);
 type ChunkIndex = Branded<number, "chunkIndex">;
 type ChunkStatus = Branded<number, "chunkStatus">;
 
-export async function* stringifyAsync(
-	value: unknown,
-	options: {
-		coerceError?: (cause: unknown) => unknown;
-		reducers?: Record<string, (value: unknown) => unknown>;
-	} = {},
-) {
-	let counter = 0;
-
-	const mergedIterables =
-		mergeAsyncIterables<[ChunkIndex, ChunkStatus, string]>();
-
-	function registerAsync(
-		callback: (idx: ChunkIndex) => AsyncIterable<[ChunkStatus, string]>,
-	) {
-		const idx = ++counter as ChunkIndex;
-
-		const iterable = callback(idx);
-
-		mergedIterables.add(
-			(async function* () {
-				for await (const item of iterable) {
-					yield [idx, ...item];
-				}
-			})(),
-		);
-
-		return idx;
-	}
-
-	/* eslint-disable perfectionist/sort-objects */
-	const reducers: Record<string, (value: unknown) => unknown> = {
-		...options.reducers,
-		ReadableStream(v) {
-			if (!(v instanceof ReadableStream)) {
-				return false;
-			}
-			return registerAsync(async function* () {
-				const reader = v.getReader();
-				try {
-					// eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-					while (true) {
-						const next = await reader.read();
-
-						if (next.done) {
-							yield [
-								ASYNC_ITERABLE_STATUS_RETURN,
-								stringify(next.value, reducers),
-							];
-							break;
-						}
-						yield [
-							ASYNC_ITERABLE_STATUS_YIELD,
-							stringify(next.value, reducers),
-						];
-					}
-				} catch (cause) {
-					yield [ASYNC_ITERABLE_STATUS_ERROR, safeCause(cause)];
-				} finally {
-					reader.releaseLock();
-					await reader.cancel();
-				}
-			});
-		},
-		AsyncIterable(v) {
-			if (!isAsyncIterable(v)) {
-				return false;
-			}
-			return registerAsync(async function* () {
-				const iterator = v[Symbol.asyncIterator]();
-				try {
-					// eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-					while (true) {
-						const next = await iterator.next();
-						if (next.done) {
-							yield [
-								ASYNC_ITERABLE_STATUS_RETURN,
-								stringify(next.value, reducers),
-							];
-							break;
-						}
-						yield [
-							ASYNC_ITERABLE_STATUS_YIELD,
-							stringify(next.value, reducers),
-						];
-					}
-				} catch (cause) {
-					yield [ASYNC_ITERABLE_STATUS_ERROR, safeCause(cause)];
-				} finally {
-					await iterator.return?.();
-				}
-			});
-		},
-		Promise(v) {
-			if (!isPromise(v)) {
-				return false;
-			}
-			v.catch(() => {
-				// prevent unhandled promise rejection
-			});
-			return registerAsync(async function* () {
-				try {
-					const next = await v;
-					yield [PROMISE_STATUS_FULFILLED, stringify(next, reducers)];
-				} catch (cause) {
-					yield [PROMISE_STATUS_REJECTED, safeCause(cause)];
-				}
-			});
-		},
-	};
-
-	/* eslint-enable perfectionist/sort-objects */
-
-	/** @param cause The error cause to safely stringify - prevents interrupting full stream when error is unregistered */
-	function safeCause(cause: unknown) {
-		try {
-			return stringify(cause, reducers);
-		} catch (err) {
-			if (!options.coerceError) {
-				throw err;
-			}
-			return stringify(options.coerceError(cause), reducers);
-		}
-	}
-
-	yield stringify(value, reducers) + "\n";
-
-	for await (const item of mergedIterables) {
-		yield "[" + item.join(",") + "]\n";
-	}
-}
-
-export async function unflattenAsync<T>(
+export async function parseAsync<T>(
 	value: AsyncIterable<string>,
 	opts: {
 		revivers?: Record<string, (value: unknown) => unknown>;
@@ -350,6 +218,138 @@ export async function unflattenAsync<T>(
 	}
 
 	return headValue;
+}
+
+export async function* stringifyAsync(
+	value: unknown,
+	options: {
+		coerceError?: (cause: unknown) => unknown;
+		reducers?: Record<string, (value: unknown) => unknown>;
+	} = {},
+) {
+	let counter = 0;
+
+	const mergedIterables =
+		mergeAsyncIterables<[ChunkIndex, ChunkStatus, string]>();
+
+	function registerAsync(
+		callback: (idx: ChunkIndex) => AsyncIterable<[ChunkStatus, string]>,
+	) {
+		const idx = ++counter as ChunkIndex;
+
+		const iterable = callback(idx);
+
+		mergedIterables.add(
+			(async function* () {
+				for await (const item of iterable) {
+					yield [idx, ...item];
+				}
+			})(),
+		);
+
+		return idx;
+	}
+
+	/* eslint-disable perfectionist/sort-objects */
+	const reducers: Record<string, (value: unknown) => unknown> = {
+		...options.reducers,
+		ReadableStream(v) {
+			if (!(v instanceof ReadableStream)) {
+				return false;
+			}
+			return registerAsync(async function* () {
+				const reader = v.getReader();
+				try {
+					// eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+					while (true) {
+						const next = await reader.read();
+
+						if (next.done) {
+							yield [
+								ASYNC_ITERABLE_STATUS_RETURN,
+								stringify(next.value, reducers),
+							];
+							break;
+						}
+						yield [
+							ASYNC_ITERABLE_STATUS_YIELD,
+							stringify(next.value, reducers),
+						];
+					}
+				} catch (cause) {
+					yield [ASYNC_ITERABLE_STATUS_ERROR, safeCause(cause)];
+				} finally {
+					reader.releaseLock();
+					await reader.cancel();
+				}
+			});
+		},
+		AsyncIterable(v) {
+			if (!isAsyncIterable(v)) {
+				return false;
+			}
+			return registerAsync(async function* () {
+				const iterator = v[Symbol.asyncIterator]();
+				try {
+					// eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+					while (true) {
+						const next = await iterator.next();
+						if (next.done) {
+							yield [
+								ASYNC_ITERABLE_STATUS_RETURN,
+								stringify(next.value, reducers),
+							];
+							break;
+						}
+						yield [
+							ASYNC_ITERABLE_STATUS_YIELD,
+							stringify(next.value, reducers),
+						];
+					}
+				} catch (cause) {
+					yield [ASYNC_ITERABLE_STATUS_ERROR, safeCause(cause)];
+				} finally {
+					await iterator.return?.();
+				}
+			});
+		},
+		Promise(v) {
+			if (!isPromise(v)) {
+				return false;
+			}
+			v.catch(() => {
+				// prevent unhandled promise rejection
+			});
+			return registerAsync(async function* () {
+				try {
+					const next = await v;
+					yield [PROMISE_STATUS_FULFILLED, stringify(next, reducers)];
+				} catch (cause) {
+					yield [PROMISE_STATUS_REJECTED, safeCause(cause)];
+				}
+			});
+		},
+	};
+
+	/* eslint-enable perfectionist/sort-objects */
+
+	/** @param cause The error cause to safely stringify - prevents interrupting full stream when error is unregistered */
+	function safeCause(cause: unknown) {
+		try {
+			return stringify(cause, reducers);
+		} catch (err) {
+			if (!options.coerceError) {
+				throw err;
+			}
+			return stringify(options.coerceError(cause), reducers);
+		}
+	}
+
+	yield stringify(value, reducers) + "\n";
+
+	for await (const item of mergedIterables) {
+		yield "[" + item.join(",") + "]\n";
+	}
 }
 
 async function* lineAggregator(iterable: AsyncIterable<string>) {
