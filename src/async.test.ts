@@ -320,6 +320,53 @@ test("dedupe", async () => {
 	}
 });
 
+test("nested async values", async () => {
+	interface Comment {
+		content: string;
+		user: string;
+	}
+
+	async function getComments(): Promise<Comment[]> {
+		return [
+			{
+				content: "comment 1",
+				user: "KATT",
+			},
+		];
+	}
+
+	const source = () => ({
+		post: Promise.resolve({
+			comments: getComments(),
+			id: 1,
+			title: "post title",
+		}),
+	});
+	type Source = ReturnType<typeof source>;
+
+	const iterable = stringifyAsync(source());
+
+	const result = await parseAsync<Source>(iterable);
+
+	const promise = await result.post;
+	expect(promise).toMatchInlineSnapshot(`
+		{
+		  "comments": Promise {},
+		  "title": "post title",
+		}
+	`);
+
+	const comments = await promise.comments;
+	expect(comments).toMatchInlineSnapshot(`
+		[
+		  {
+		    "content": "comment 1",
+		    "user": "KATT",
+		  },
+		]
+	`);
+});
+
 test.fails("todo(?) - referential integrity across chunks", async () => {
 	const user = {
 		id: 1,
@@ -379,4 +426,30 @@ test("custom type", async () => {
 
 	expect(aggregate.ok).toBe(true);
 	expect(aggregate.items).toEqual([new Vector(1, 2), new Vector(3, 4)]);
+});
+
+test("serialization format for readme", async () => {
+	const source = () => ({
+		asyncIterable: (async function* () {
+			yield "hello";
+			yield "world";
+
+			return "return value";
+		})(),
+	});
+
+	const iterable = stringifyAsync(source());
+
+	let aggregate = "";
+	for await (const chunk of iterable) {
+		aggregate += chunk;
+	}
+
+	expect(aggregate).toMatchInlineSnapshot(`
+		"[{"asyncIterable":1},["AsyncIterable",2],1]
+		[1,0,["hello"]]
+		[1,0,["world"]]
+		[1,2,["return value"]]
+		"
+	`);
 });
