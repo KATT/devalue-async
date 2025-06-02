@@ -1,5 +1,4 @@
 import { createDeferred } from "./createDeferred.js";
-import { makeAsyncResource } from "./makeAsyncResource.js";
 
 type ManagedIterator<TYield, TReturn> = ReturnType<
 	typeof createManagedIterator<TYield, TReturn>
