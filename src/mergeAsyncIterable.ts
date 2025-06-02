@@ -18,31 +18,31 @@ function createManagedIterator<TYield, TReturn>(
 	onResult: (result: ManagedIteratorResult<TYield, TReturn>) => void,
 ) {
 	const iterator = iterable[Symbol.asyncIterator]();
-	let state: "done" | "idle" | "pending" = "idle";
+	let iterating = false;
 
 	function cleanup() {
-		state = "done";
+		iterating = false;
 		onResult = () => {
 			// noop
 		};
 	}
 
 	function pull() {
-		if (state !== "idle") {
+		if (iterating) {
 			return;
 		}
-		state = "pending";
+		iterating = true;
 
 		const next = iterator.next();
 		next
 			.then((result) => {
 				if (result.done) {
-					state = "done";
+					iterating = false;
 					onResult({ status: "return", value: result.value });
 					cleanup();
 					return;
 				}
-				state = "idle";
+				iterating = false;
 				onResult({ status: "yield", value: result.value });
 			})
 			.catch((cause: unknown) => {
@@ -75,12 +75,12 @@ export function mergeAsyncIterables<TYield>(): MergedAsyncIterables<TYield> {
 	let flushSignal = createDeferred();
 
 	/**
-	 * used while {@link state} is `idle`
+	 * used while {@link iterating} is `false`
 	 */
 	const iterables: AsyncIterable<TYield, void, unknown>[] = [];
 
 	/**
-	 * used while {@link state} is `pending`
+	 * used while {@link iterating} is `true`
 	 */
 	const iterators = new Set<ManagedIterator<TYield, void>>();
 
@@ -117,6 +117,7 @@ export function mergeAsyncIterables<TYield>(): MergedAsyncIterables<TYield> {
 				iterables.push(iterable);
 			}
 		},
+
 		async *[Symbol.asyncIterator]() {
 			if (iterating) {
 				throw new Error("Cannot iterate twice");
@@ -124,17 +125,17 @@ export function mergeAsyncIterables<TYield>(): MergedAsyncIterables<TYield> {
 			iterating = true;
 
 			try {
-				while (iterables.length > 0) {
-					// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-					initIterable(iterables.shift()!);
+				let iterable;
+				while ((iterable = iterables.shift())) {
+					initIterable(iterable);
 				}
 
 				while (iterators.size > 0) {
 					await flushSignal.promise;
 
-					while (buffer.length > 0) {
-						// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-						const [iterator, result] = buffer.shift()!;
+					let chunk;
+					while ((chunk = buffer.shift())) {
+						const [iterator, result] = chunk;
 
 						switch (result.status) {
 							case "yield":
