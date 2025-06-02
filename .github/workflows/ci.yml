@@ -7,13 +7,13 @@ jobs:
       - uses: ./.github/actions/prepare
       - run: pnpm build
       - run: node lib/index.js
-  lint:
-    name: Lint
+  lint_eslint:
+    name: ESLint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/prepare
-      - run: pnpm lint
+      - run: pnpm lint:eslint
   lint_knip:
     name: Lint Knip
     runs-on: ubuntu-latest

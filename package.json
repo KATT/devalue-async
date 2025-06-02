@@ -25,6 +25,7 @@
 	"scripts": {
 		"build": "tsdown",
 		"format": "prettier . --write",
+		"lint": "run-p lint:* --print-label",
 		"lint:eslint": "eslint . --max-warnings 0",
 		"lint:knip": "knip",
 		"lint:md": "markdownlint \"**/*.md\" \".github/**/*.md\" --rules sentences-per-line",
@@ -36,6 +37,9 @@
 	},
 	"lint-staged": {
 		"*": "prettier --ignore-unknown --write"
+	},
+	"dependencies": {
+		"npm-run-all": "^4.1.5"
 	},
 	"devDependencies": {
 		"@eslint-community/eslint-plugin-eslint-comments": "4.5.0",
