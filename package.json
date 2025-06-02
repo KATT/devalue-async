@@ -43,8 +43,8 @@
 		"@eslint/js": "9.27.0",
 		"@release-it/conventional-changelog": "10.0.0",
 		"@types/eslint-plugin-markdown": "2.0.2",
-		"@types/node": "22.13.10",
-		"@vitest/coverage-v8": "3.0.9",
+		"@types/node": "22.15.21",
+		"@vitest/coverage-v8": "3.1.4",
 		"@vitest/eslint-plugin": "1.2.1",
 		"console-fail-test": "0.5.0",
 		"cspell": "8.19.4",
@@ -73,12 +73,12 @@
 		"tsdown": "^0.12.6",
 		"typescript": "5.8.2",
 		"typescript-eslint": "8.32.1",
-		"vitest": "3.0.9"
+		"vitest": "3.1.4"
 	},
 	"peerDependencies": {
 		"devalue": "^5.0.0"
 	},
-	"packageManager": "pnpm@10.4.0",
+	"packageManager": "pnpm@10.11.0",
 	"engines": {
 		"node": ">=18.3.0"
 	},
