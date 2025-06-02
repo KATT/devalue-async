@@ -253,6 +253,38 @@ for await (const vector of result.vectors) {
 }
 ```
 
+### Nested async values
+
+It's supported to have nested async values
+
+```ts
+interface Comment {
+	content: string;
+	user: string;
+}
+
+async function getComments(): Promise<Comment[]> {
+	// ...
+}
+
+const source = {
+	post: Promise.resolve({
+		comments: getComments(),
+		title: "post title",
+	}),
+};
+
+const iterable = stringifyAsync(source);
+
+const result = await parseAsync<typeof source>(iterable);
+
+const post = await result.post;
+console.log(post.title); // "post title"
+
+const comments = await post.comments;
+console.log(comments); // [ { content: "comment 1", user: "KATT" } ]
+```
+
 ## API Reference
 
 ### `stringifyAsync(value, options?)`
@@ -277,6 +309,55 @@ Reconstructs a value from a serialized async iterable.
 - `options.revivers?`: Record of custom type revivers (same as devalue)
 
 **Returns:** `Promise<T>`
+
+### Serialization Format
+
+The serialization format is based on devalue's format with additional support for async values.
+
+Whenever an async value is encountered, it is registered with a unique id each value will be passed later on in the stream.
+
+All async values are raced so values are resolved as they are encountered.
+
+#### Example
+
+```ts
+const source = () => ({
+	asyncIterable: (async function* () {
+		yield "hello";
+		yield "world";
+
+		return "return value";
+	})(),
+});
+
+const iterable = stringifyAsync(source());
+
+for await (const chunk of iterable) {
+	console.log(chunk); // ->
+	// 1st chunk:
+	// [{"asyncIterable":1},["AsyncIterable",2],1]
+	// the 1 at the end is the id of the async iterable
+
+	// 2nd chunk:
+	// [1,0,["hello"]]
+	// the 1 at the start is the id of the async iterable
+	// the 0 means it is a yielded value
+
+	// 3rd chunk:
+	// [1,0,["world"]]
+	// the 1 at the start is the id of the async iterable
+	// the 0 means it is a yielded value
+
+	// 4th chunk:
+	// [1,2,["return value"]]
+	// the 1 at the start is the id of the async iterable
+	// the 2 means that the async iterable has returned a value
+}
+```
+
+## Limitations
+
+Referential integrity and deduplication across chunks in the stream is not supported and requires a fork of devalue to be able to track already seen values.
 
 ## Development
 
