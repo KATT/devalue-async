@@ -7,10 +7,6 @@ settings:
 importers:
 
   .:
-    dependencies:
-      npm-run-all:
-        specifier: ^4.1.5
-        version: 4.1.5
     devDependencies:
       '@eslint-community/eslint-plugin-eslint-comments':
         specifier: 4.5.0
@@ -84,6 +80,9 @@ importers:
       markdownlint-cli:
         specifier: 0.45.0
         version: 0.45.0
+      npm-run-all:
+        specifier: ^4.1.5
+        version: 4.1.5
       prettier:
         specifier: 3.5.3
         version: 3.5.3
