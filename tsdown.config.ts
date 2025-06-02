@@ -1,6 +1,5 @@
 import { defineConfig } from "tsdown";
 
-// eslint-disable-next-line @typescript-eslint/no-unsafe-call
 export default defineConfig({
 	// Clean output directory before building
 	clean: true,
