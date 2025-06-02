@@ -88,32 +88,35 @@ export function mergeAsyncIterables<TYield>(): MergedAsyncIterables<TYield> {
 		result: Exclude<ManagedIteratorResult<TYield, void>, { status: "return" }>,
 	][] = [];
 
-	function initIterable(iterable: AsyncIterable<TYield, void, unknown>) {
-		const iterator = createManagedIterator(iterable, (result) => {
-			switch (result.status) {
-				case "error":
-					buffer.push([iterator, result]);
-					iterators.delete(iterator);
-					break;
-				case "return":
-					iterators.delete(iterator);
-					break;
-				case "yield":
-					buffer.push([iterator, result]);
-					break;
-			}
-			flushSignal.resolve();
-		});
-		iterators.add(iterator);
-		iterator.pull();
+	function initIterables() {
+		let iterable;
+
+		while ((iterable = iterables.shift())) {
+			const iterator = createManagedIterator(iterable, (result) => {
+				switch (result.status) {
+					case "error":
+						buffer.push([iterator, result]);
+						iterators.delete(iterator);
+						break;
+					case "return":
+						iterators.delete(iterator);
+						break;
+					case "yield":
+						buffer.push([iterator, result]);
+						break;
+				}
+				flushSignal.resolve();
+			});
+			iterators.add(iterator);
+			iterator.pull();
+		}
 	}
 
 	return {
 		add(iterable: AsyncIterable<TYield, void, unknown>) {
+			iterables.push(iterable);
 			if (iterating) {
-				initIterable(iterable);
-			} else {
-				iterables.push(iterable);
+				initIterables();
 			}
 		},
 
@@ -124,10 +127,7 @@ export function mergeAsyncIterables<TYield>(): MergedAsyncIterables<TYield> {
 			iterating = true;
 
 			try {
-				let iterable;
-				while ((iterable = iterables.shift())) {
-					initIterable(iterable);
-				}
+				initIterables();
 
 				while (iterators.size > 0) {
 					await flushSignal.promise;
