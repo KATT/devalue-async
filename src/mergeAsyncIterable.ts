@@ -51,7 +51,7 @@ function createManagedIterator<TYield, TReturn>(
 	}
 
 	return {
-		destroy: async () => {
+		cancel: async () => {
 			cleanup();
 			await iterator.return?.();
 		},
@@ -150,24 +150,29 @@ export function mergeAsyncIterables<TYield>(): MergedAsyncIterables<TYield> {
 			} finally {
 				iterating = false;
 
-				const errors: unknown[] = [];
-				await Promise.all(
-					Array.from(iterators.values()).map(async (it) => {
-						try {
-							await it.destroy();
-						} catch (cause) {
-							errors.push(cause);
-						}
-					}),
-				);
+				const errorsPromise = (async () => {
+					const errors: unknown[] = [];
+
+					await Promise.all(
+						Array.from(iterators.values()).map(async (it) => {
+							try {
+								await it.cancel();
+							} catch (cause) {
+								errors.push(cause);
+							}
+						}),
+					);
+
+					if (errors.length > 0) {
+						throw new AggregateError(errors);
+					}
+				})();
+
 				buffer.length = 0;
 				iterators.clear();
 				flushSignal.resolve();
 
-				if (errors.length > 0) {
-					// eslint-disable-next-line no-unsafe-finally
-					throw new AggregateError(errors);
-				}
+				await errorsPromise;
 			}
 		},
 	};
