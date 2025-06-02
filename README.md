@@ -236,20 +236,24 @@ const source = {
 		yield new Vector(3, 4);
 	})(),
 };
-
-const serialized = stringifyAsync(source, {
+const iterable = stringifyAsync(source, {
 	reducers: {
 		Vector: (value) => value instanceof Vector && [value.x, value.y],
 	},
 });
 
-const result = await parseAsync<typeof source>(serialized, {
+const result = await parseAsync<typeof source>(iterable, {
 	revivers: {
-		Vector: ([x, y]) => new Vector(x, y),
+		Vector: (value) => {
+			const [x, y] = value as [number, number];
+			return new Vector(x, y);
+		},
 	},
 });
 
-console.log(result.vectors); // [Vector { x: 1, y: 2 }, Vector { x: 3, y: 4 }]
+for await (const vector of result.vectors) {
+	console.log(vector); // Vector { x: 1, y: 2 }, Vector { x: 3, y: 4 }
+}
 ```
 
 ## API Reference
