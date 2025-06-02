@@ -1,5 +1,3 @@
-export type Deferred<TValue> = ReturnType<typeof createDeferred<TValue>>;
-
 export function createDeferred<TValue = void>() {
 	let resolve: (value: TValue) => void;
 	let reject: (error: unknown) => void;

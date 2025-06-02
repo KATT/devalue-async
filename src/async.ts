@@ -313,6 +313,16 @@ export async function unflattenAsync<T>(
 		revivers,
 	);
 
+	function cleanup(cause?: unknown) {
+		for (const [, enqueue] of controllerMap) {
+			enqueue.push(
+				cause instanceof Error
+					? cause
+					: new Error("Stream interrupted", { cause }),
+			);
+		}
+	}
+
 	if (!head.done) {
 		(async () => {
 			// eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
@@ -332,33 +342,27 @@ export async function unflattenAsync<T>(
 			}
 			// if we get here, we've finished the stream, let's go through all the enqueue map and enqueue a stream interrupt error
 			// this will only happen if receiving a malformatted stream
-			for (const [, enqueue] of controllerMap) {
-				enqueue.push(new Error("Stream interrupted: malformed stream"));
-			}
+			cleanup();
 		})().catch((cause: unknown) => {
 			// go through all the asyncMap and enqueue the error
-			for (const [, enqueue] of controllerMap) {
-				enqueue.push(
-					cause instanceof Error
-						? cause
-						: new Error("Stream interrupted", { cause }),
-				);
-			}
+			cleanup(cause);
 		});
 	}
 
 	return headValue;
 }
 
-async function* lineAggregator(value: AsyncIterable<string>) {
+async function* lineAggregator(iterable: AsyncIterable<string>) {
 	let buffer = "";
 
-	for await (const line of value) {
-		buffer += line;
-		const parts = buffer.split("\n");
-		buffer = parts.pop() ?? "";
-		for (const part of parts) {
-			yield part;
+	for await (const chunk of iterable) {
+		buffer += chunk;
+
+		let index: number;
+		while ((index = buffer.indexOf("\n")) !== -1) {
+			const line = buffer.slice(0, index);
+			buffer = buffer.slice(index + 1);
+			yield line;
 		}
 	}
 }
