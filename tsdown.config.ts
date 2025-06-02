@@ -10,7 +10,7 @@ export default defineConfig({
 	// Entry points - all TypeScript files except tests
 	entry: ["src/**/*.ts", "!src/**/*.test.*", "!src/**/test.*"],
 	// Output format
-	format: "esm",
+	format: ["esm", "cjs"],
 	// Output directory
 	outDir: "lib",
 });
