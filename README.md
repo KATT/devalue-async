@@ -310,7 +310,7 @@ Reconstructs a value from a serialized async iterable.
 
 **Returns:** `Promise<T>`
 
-## Serialization Format
+### Serialization Format
 
 The serialization format is based on devalue's format with additional support for async values.
 
@@ -318,7 +318,7 @@ Whenever an async value is encountered, it is registered with a unique id each v
 
 All async values are raced so values are resolved as they are encountered.
 
-### Example
+#### Example
 
 ```ts
 const source = () => ({
@@ -354,6 +354,10 @@ for await (const chunk of iterable) {
 	// the 2 means that the async iterable has returned a value
 }
 ```
+
+## Limitations
+
+Referential integrity and deduplication across chunks in the stream is not supported and requires a fork of devalue to be able to track already seen values.
 
 ## Development
 
