@@ -352,6 +352,7 @@ test("nested async values", async () => {
 	expect(promise).toMatchInlineSnapshot(`
 		{
 		  "comments": Promise {},
+		  "id": 1,
 		  "title": "post title",
 		}
 	`);
