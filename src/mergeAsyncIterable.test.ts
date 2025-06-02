@@ -2,7 +2,7 @@ import { expect, test } from "vitest";
 
 import { createDeferred } from "./createDeferred.js";
 import { mergeAsyncIterables } from "./mergeAsyncIterable.js";
-import { aggregateAsyncIterable } from "./test.utils.js";
+import { aggregateAsyncIterable, waitError } from "./test.utils.js";
 
 test("basic", async () => {
 	type Type = number | string;
@@ -76,4 +76,49 @@ test("while iterating", async () => {
 		3,
 	]);
 	expect(aggregate.return).toBeUndefined();
+});
+
+test("failed cleanup", async () => {
+	const merged = mergeAsyncIterables<string>();
+
+	merged.add({
+		[Symbol.asyncIterator]: () => {
+			const queue = ["a", "b", "c"];
+			const iterator: AsyncIterator<string> = {
+				async next() {
+					const n = queue.shift();
+					if (n === undefined) {
+						return {
+							done: true,
+							value: undefined,
+						};
+					}
+					return {
+						done: false,
+						value: n,
+					};
+				},
+				async return() {
+					throw new Error("failed return");
+				},
+			};
+
+			return iterator;
+		},
+	});
+
+	const error = await waitError(async () => {
+		for await (const value of merged) {
+			if (value === "b") {
+				break;
+			}
+		}
+	}, AggregateError);
+
+	expect(error).toBeInstanceOf(AggregateError);
+	expect(error.errors).toMatchInlineSnapshot(`
+		[
+		  [Error: failed return],
+		]
+	`);
 });
