@@ -363,7 +363,11 @@ test("async over the wire", async () => {
 });
 
 test("dedupe", async () => {
-	const promise = Promise.resolve("1");
+	const user = {
+		id: 1,
+	};
+
+	const promise = Promise.resolve(user);
 
 	const source = () => ({
 		promise1: promise,
@@ -374,7 +378,9 @@ test("dedupe", async () => {
 	const iterable = stringifyAsync(source());
 	const result = await unflattenAsync<Source>(iterable);
 
-	expect(result.promise1).toBe(result.promise2);
+	expect(result.promise1).toStrictEqual(result.promise2);
+
+	expect(await result.promise1).toEqual(user);
 });
 
 test.fails("todo(?) - referential integrity across chunks", async () => {
