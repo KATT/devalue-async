@@ -35,12 +35,12 @@ npm install devalue devalue-async
 
 ## Usage
 
-There are two main functions: `stringifyAsync` and `unflattenAsync`.
+There are two main functions: `stringifyAsync` and `parseAsync`.
 
 ### Basic Example
 
 ```ts
-import { stringifyAsync, unflattenAsync } from "devalue-async";
+import { parseAsync, stringifyAsync } from "devalue-async";
 
 const source = {
 	asyncIterable: (async function* () {
@@ -56,7 +56,7 @@ const source = {
 const serialized = stringifyAsync(source);
 
 // Reconstruct the original structure
-const result = await unflattenAsync<typeof source>(serialized);
+const result = await parseAsync<typeof source>(serialized);
 
 console.log(await result.promise); // 'Hello world'
 
@@ -69,7 +69,7 @@ for await (const value of result.asyncIterable) {
 ### Working with ReadableStreams
 
 ```ts
-import { stringifyAsync, unflattenAsync } from "devalue-async";
+import { parseAsync, stringifyAsync } from "devalue-async";
 
 const source = {
 	stream: new ReadableStream({
@@ -82,7 +82,7 @@ const source = {
 };
 
 const serialized = stringifyAsync(source);
-const result = await unflattenAsync<typeof source>(serialized);
+const result = await parseAsync<typeof source>(serialized);
 
 const reader = result.stream.getReader();
 while (true) {
@@ -99,7 +99,7 @@ while (true) {
 Devalue Async can handle errors in async operations:
 
 ```ts
-import { stringifyAsync, unflattenAsync } from "devalue-async";
+import { parseAsync, stringifyAsync } from "devalue-async";
 
 class CustomError extends Error {
 	constructor(message: string) {
@@ -123,7 +123,7 @@ const serialized = stringifyAsync(source, {
 	},
 });
 
-const result = await unflattenAsync<typeof source>(serialized, {
+const result = await parseAsync<typeof source>(serialized, {
 	revivers: {
 		CustomError: (message) => new CustomError(message),
 	},
@@ -171,7 +171,7 @@ const serialized = stringifyAsync(source, {
 	},
 });
 
-const result = await unflattenAsync<typeof source>(serialized, {
+const result = await parseAsync<typeof source>(serialized, {
 	revivers: {
 		GenericError: () => new Error("Unknown error"),
 	},
@@ -210,7 +210,7 @@ import type { ApiResponse } from "./server";
 const response = await fetch("/api/data");
 const responseBody = response.body!.pipeThrough(new TextDecoderStream());
 
-const result = await unflattenAsync<ApiResponse>(responseBody);
+const result = await parseAsync<ApiResponse>(responseBody);
 
 console.log(result.user);
 for await (const notification of result.notifications) {
@@ -243,7 +243,7 @@ const serialized = stringifyAsync(source, {
 	},
 });
 
-const result = await unflattenAsync<typeof source>(serialized, {
+const result = await parseAsync<typeof source>(serialized, {
 	revivers: {
 		Vector: ([x, y]) => new Vector(x, y),
 	},
@@ -266,7 +266,7 @@ Serializes a value containing async elements to an async iterable of strings.
 
 **Returns:** `AsyncIterable<string>`
 
-### `unflattenAsync(iterable, options?)`
+### `parseAsync(iterable, options?)`
 
 Reconstructs a value from a serialized async iterable.
 
