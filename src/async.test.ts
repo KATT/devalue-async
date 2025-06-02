@@ -5,32 +5,21 @@ import { expect, test } from "vitest";
 import { parseAsync, stringifyAsync } from "./async.js";
 import { aggregateAsyncIterable, sleep, waitError } from "./test.utils.js";
 
-function readableStreamFrom<T>(iterable: AsyncIterable<T>) {
-	const iterator = iterable[Symbol.asyncIterator]();
+function serverResource(
+	handler: (req: http.IncomingMessage, res: http.ServerResponse) => void,
+) {
+	const server = http.createServer(handler);
+	server.listen(0);
+	const port = (server.address() as AddressInfo).port;
 
-	return new ReadableStream<T>({
-		async cancel() {
-			await iterator.return?.();
+	const url = `http://localhost:${String(port)}`;
+
+	return {
+		[Symbol.dispose]() {
+			server.close();
 		},
-
-		async pull(controller) {
-			const result = await iterator.next();
-
-			if (result.done) {
-				controller.close();
-				return;
-			}
-
-			controller.enqueue(result.value);
-		},
-	});
-}
-
-async function* withDebug<T>(iterable: AsyncIterable<T>) {
-	for await (const value of iterable) {
-		yield value;
-		// console.log("yielding", value);
-	}
+		url,
+	};
 }
 
 test("stringify and unflatten async", async () => {
@@ -50,7 +39,7 @@ test("stringify and unflatten async", async () => {
 	type Source = ReturnType<typeof source>;
 	const iterable = stringifyAsync(source());
 
-	const result = await parseAsync<Source>(withDebug(iterable));
+	const result = await parseAsync<Source>(iterable);
 
 	expect(await result.promise).toEqual("resolved promise");
 
@@ -178,7 +167,7 @@ test("stringify and parse async values with errors", async () => {
 		},
 	});
 
-	const result = await parseAsync<Source>(withDebug(iterable), {
+	const result = await parseAsync<Source>(iterable, {
 		revivers: {
 			MyCustomError: (value) => {
 				return new MyCustomError(value as string);
@@ -211,36 +200,6 @@ test("stringify and parse async values with errors", async () => {
 	}
 });
 
-test("request/response-like readable streams", async () => {
-	const source = () => ({
-		asyncIterable: (async function* () {
-			yield -0;
-			yield 1;
-			yield 2;
-			return "returned async iterable";
-		})(),
-		promise: (async () => {
-			return "resolved promise";
-		})(),
-	});
-	type Source = ReturnType<typeof source>;
-	const responseBodyStream = readableStreamFrom(
-		stringifyAsync(source()),
-	).pipeThrough(new TextEncoderStream());
-
-	const result = await parseAsync<Source>(
-		responseBodyStream.pipeThrough(new TextDecoderStream()),
-	);
-
-	expect(await result.promise).toEqual("resolved promise");
-
-	const aggregate = await aggregateAsyncIterable(result.asyncIterable);
-
-	expect(aggregate.ok).toBe(true);
-	expect(aggregate.items).toEqual([-0, 1, 2]);
-	expect(aggregate.return).toEqual("returned async iterable");
-});
-
 test("stringify and unflatten ReadableStream", async () => {
 	const source = () => ({
 		stream: new ReadableStream<string>({
@@ -254,7 +213,7 @@ test("stringify and unflatten ReadableStream", async () => {
 	type Source = ReturnType<typeof source>;
 
 	const iterable = stringifyAsync(source());
-	const result = await parseAsync<Source>(withDebug(iterable));
+	const result = await parseAsync<Source>(iterable);
 
 	expect(result.stream).toBeInstanceOf(ReadableStream);
 
@@ -265,29 +224,14 @@ test("stringify and unflatten ReadableStream", async () => {
 	expect(aggregate.return).toBeUndefined();
 });
 
-function serverResource(
-	handler: (req: http.IncomingMessage, res: http.ServerResponse) => void,
-) {
-	const server = http.createServer(handler);
-	server.listen(0);
-	const port = (server.address() as AddressInfo).port;
-
-	const url = `http://localhost:${String(port)}`;
-
-	return {
-		[Symbol.dispose]() {
-			server.close();
-		},
-		url,
-	};
-}
-
 test("async over the wire", async () => {
 	const source = () => ({
 		asyncIterable: (async function* () {
 			yield "hello";
 			await sleep(1);
 			yield "world";
+
+			return "returned async iterable";
 		})(),
 	});
 	type Source = ReturnType<typeof source>;
@@ -316,7 +260,7 @@ test("async over the wire", async () => {
 			  "[{"asyncIterable":1},["AsyncIterable",2],1]",
 			  "[1,0,["hello"]]",
 			  "[1,0,["world"]]",
-			  "[1,2,-1]",
+			  "[1,2,["returned async iterable"]]",
 			  "",
 			]
 		`);
@@ -334,7 +278,7 @@ test("async over the wire", async () => {
 
 		expect(aggregate.ok).toBe(true);
 		expect(aggregate.items).toEqual(["hello", "world"]);
-		expect(aggregate.return).toBeUndefined();
+		expect(aggregate.return).toEqual("returned async iterable");
 	}
 });
 
