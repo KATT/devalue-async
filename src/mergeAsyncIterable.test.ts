@@ -2,16 +2,7 @@ import { expect, test } from "vitest";
 
 import { createDeferred } from "./createDeferred.js";
 import { mergeAsyncIterables } from "./mergeAsyncIterable.js";
-
-async function asyncIterableToArray<T>(iterable: AsyncIterable<T>) {
-	const results: T[] = [];
-
-	for await (const value of iterable) {
-		results.push(value);
-	}
-
-	return results;
-}
+import { aggregateAsyncIterable } from "./testUtils.js";
 
 test("basic", async () => {
 	type Type = number | string;
@@ -32,9 +23,10 @@ test("basic", async () => {
 		})(),
 	);
 
-	const aggregate = await asyncIterableToArray(merged);
+	const aggregate = await aggregateAsyncIterable(merged);
 
-	expect(aggregate).toEqual(["a", 1, "b", 2, "c", 3]);
+	expect(aggregate.ok).toBe(true);
+	expect(aggregate.items).toEqual(["a", 1, "b", 2, "c", 3]);
 });
 
 test("while iterating", async () => {
@@ -50,7 +42,7 @@ test("while iterating", async () => {
 	);
 
 	const deferred = createDeferred();
-	const aggregatePromise = asyncIterableToArray(
+	const aggregatePromise = aggregateAsyncIterable(
 		(async function* () {
 			for await (const value of merged) {
 				if (value === "b") {
@@ -73,7 +65,8 @@ test("while iterating", async () => {
 
 	const aggregate = await aggregatePromise;
 
-	expect(aggregate).toEqual([
+	expect(aggregate.ok).toBe(true);
+	expect(aggregate.items).toEqual([
 		//
 		"a",
 		"b",
@@ -82,4 +75,5 @@ test("while iterating", async () => {
 		2,
 		3,
 	]);
+	expect(aggregate.return).toBeUndefined();
 });

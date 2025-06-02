@@ -3,6 +3,7 @@ import { AddressInfo } from "node:net";
 import { expect, test } from "vitest";
 
 import { stringifyAsync, unflattenAsync } from "./async.js";
+import { aggregateAsyncIterable } from "./testUtils.js";
 
 type Constructor<T extends object = object> = new (...args: any[]) => T;
 
@@ -74,19 +75,11 @@ test("stringify and unflatten async", async () => {
 
 	expect(await result.promise).toEqual("resolved promise");
 
-	const aggregate = [];
-	const iterator = result.asyncIterable[Symbol.asyncIterator]();
-	// eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-	while (true) {
-		const next = await iterator.next();
-		if (next.done) {
-			expect(next.value).toEqual("returned async iterable");
-			break;
-		}
-		aggregate.push(next.value);
-	}
+	const aggregate = await aggregateAsyncIterable(result.asyncIterable);
 
-	expect(aggregate).toEqual([-0, 1, 2]);
+	expect(aggregate.ok).toBe(true);
+	expect(aggregate.items).toEqual([-0, 1, 2]);
+	expect(aggregate.return).toEqual("returned async iterable");
 });
 
 test("stringify and parse async values with errors - simple", async () => {
@@ -145,21 +138,12 @@ test("stringify and parse async values with errors - simple", async () => {
 		},
 	});
 
-	const aggregate: number[] = [];
+	const aggregate = await aggregateAsyncIterable(result.asyncIterable);
 
-	// wait 10ms
-	await new Promise((resolve) => setTimeout(resolve, 10));
-
-	const err = await waitError(
-		(async () => {
-			for await (const value of result.asyncIterable) {
-				aggregate.push(value);
-			}
-		})(),
-		MyCustomError,
-	);
-	expect(err.message).toEqual("error in async iterable");
-	expect(aggregate).toEqual([0, 1]);
+	expect(aggregate.ok).toBe(false);
+	expect(aggregate.error).toBeInstanceOf(MyCustomError);
+	expect(aggregate.items).toEqual([0, 1]);
+	expect(aggregate.return).toBeUndefined();
 });
 
 test("stringify and parse async values with errors", async () => {
@@ -238,15 +222,13 @@ test("stringify and parse async values with errors", async () => {
 		expect(err).toMatchInlineSnapshot(`[MyCustomError: error in promise]`);
 	}
 	{
-		const aggregate: number[] = [];
+		const aggregate = await aggregateAsyncIterable(result.asyncIterable);
 
-		await waitError(async () => {
-			for await (const value of result.asyncIterable) {
-				aggregate.push(value);
-			}
-		}, MyCustomError);
+		expect(aggregate.ok).toBe(false);
 
-		expect(aggregate).toEqual([-0]);
+		expect(aggregate.error).toBeInstanceOf(MyCustomError);
+
+		expect(aggregate.items).toEqual([-0]);
 	}
 });
 
@@ -273,19 +255,11 @@ test("request/response-like readable streams", async () => {
 
 	expect(await result.promise).toEqual("resolved promise");
 
-	const aggregate = [];
-	const iterator = result.asyncIterable[Symbol.asyncIterator]();
-	// eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-	while (true) {
-		const next = await iterator.next();
-		if (next.done) {
-			expect(next.value).toEqual("returned async iterable");
-			break;
-		}
-		aggregate.push(next.value);
-	}
+	const aggregate = await aggregateAsyncIterable(result.asyncIterable);
 
-	expect(aggregate).toEqual([-0, 1, 2]);
+	expect(aggregate.ok).toBe(true);
+	expect(aggregate.items).toEqual([-0, 1, 2]);
+	expect(aggregate.return).toEqual("returned async iterable");
 });
 
 test("stringify and unflatten ReadableStream", async () => {
@@ -305,22 +279,29 @@ test("stringify and unflatten ReadableStream", async () => {
 
 	expect(result.stream).toBeInstanceOf(ReadableStream);
 
-	const reader = result.stream.getReader();
-	const chunks: string[] = [];
+	const aggregate = await aggregateAsyncIterable(result.stream);
 
-	// eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-	while (true) {
-		const res = await reader.read();
-
-		if (res.done) {
-			expect(res.value).toBeUndefined();
-			break;
-		}
-		chunks.push(res.value);
-	}
-
-	expect(chunks).toEqual(["hello", "world"]);
+	expect(aggregate.ok).toBe(true);
+	expect(aggregate.items).toEqual(["hello", "world"]);
+	expect(aggregate.return).toBeUndefined();
 });
+
+function serverResource(
+	handler: (req: http.IncomingMessage, res: http.ServerResponse) => void,
+) {
+	const server = http.createServer(handler);
+	server.listen(0);
+	const port = (server.address() as AddressInfo).port;
+
+	const url = `http://localhost:${String(port)}`;
+
+	return {
+		[Symbol.dispose]() {
+			server.close();
+		},
+		url,
+	};
+}
 
 test("async over the wire", async () => {
 	const source = () => ({
@@ -331,7 +312,7 @@ test("async over the wire", async () => {
 		})(),
 	});
 	type Source = ReturnType<typeof source>;
-	const server = http.createServer((req, res) => {
+	using server = serverResource((req, res) => {
 		(async () => {
 			for await (const chunk of stringifyAsync(source())) {
 				res.write(chunk);
@@ -340,12 +321,8 @@ test("async over the wire", async () => {
 		})().catch(console.error);
 	});
 
-	server.listen(0);
-
-	const port = (server.address() as AddressInfo).port;
-
 	{
-		const response = await fetch(`http://localhost:${String(port)}`);
+		const response = await fetch(server.url);
 
 		expect(response.ok).toBe(true);
 
@@ -369,7 +346,7 @@ test("async over the wire", async () => {
 		`);
 	}
 	{
-		const response = await fetch(`http://localhost:${String(port)}`);
+		const response = await fetch(server.url);
 
 		expect(response.ok).toBe(true);
 
@@ -377,13 +354,49 @@ test("async over the wire", async () => {
 
 		const result = await unflattenAsync<Source>(bodyTextStream);
 
-		const aggregate: string[] = [];
+		const aggregate = await aggregateAsyncIterable(result.asyncIterable);
 
-		for await (const chunk of result.asyncIterable) {
-			aggregate.push(chunk);
-		}
-
-		expect(aggregate).toEqual(["hello", "world"]);
+		expect(aggregate.ok).toBe(true);
+		expect(aggregate.items).toEqual(["hello", "world"]);
+		expect(aggregate.return).toBeUndefined();
 	}
-	server.close();
+});
+
+test("dedupe", async () => {
+	const promise = Promise.resolve("1");
+
+	const source = () => ({
+		promise1: promise,
+		promise2: promise,
+	});
+	type Source = ReturnType<typeof source>;
+
+	const iterable = stringifyAsync(source());
+	const result = await unflattenAsync<Source>(iterable);
+
+	expect(result.promise1).toBe(result.promise2);
+});
+
+test.fails("todo(?) - referential integrity across chunks", async () => {
+	const user = {
+		id: 1,
+	};
+
+	const source = () => ({
+		asyncIterable: (async function* () {
+			yield user;
+			yield user;
+		})(),
+	});
+	type Source = ReturnType<typeof source>;
+
+	const result = await unflattenAsync<Source>(stringifyAsync(source()));
+
+	const aggregate = await aggregateAsyncIterable(result.asyncIterable);
+
+	expect(aggregate.ok).toBe(true);
+
+	expect(aggregate.return).toBeUndefined();
+
+	expect(aggregate.items[0]).toBe(aggregate.items[1]);
 });
