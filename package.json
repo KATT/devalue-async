@@ -16,11 +16,14 @@
 	"files": [
 		"LICENSE.md",
 		"README.md",
-		"lib/",
-		"package.json"
+		"lib",
+		"package.json",
+		"src",
+		"!**/*.test.*",
+		"!**/test.*"
 	],
 	"scripts": {
-		"build": "tsup",
+		"build": "tsdown",
 		"format": "prettier . --write",
 		"lint": "eslint . --max-warnings 0",
 		"lint:knip": "knip",
@@ -65,7 +68,7 @@
 		"prettier-plugin-sh": "0.17.4",
 		"release-it": "18.1.2",
 		"sentences-per-line": "0.3.0",
-		"tsup": "8.5.0",
+		"tsdown": "^0.12.6",
 		"typescript": "5.8.2",
 		"typescript-eslint": "8.32.1",
 		"vitest": "3.0.9"

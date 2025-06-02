@@ -3,7 +3,7 @@ import { AddressInfo } from "node:net";
 import { expect, test } from "vitest";
 
 import { stringifyAsync, unflattenAsync } from "./async.js";
-import { aggregateAsyncIterable } from "./testUtils.js";
+import { aggregateAsyncIterable } from "./test.utils.js";
 
 type Constructor<T extends object = object> = new (...args: any[]) => T;
 

@@ -2,7 +2,7 @@ import { expect, test } from "vitest";
 
 import { createDeferred } from "./createDeferred.js";
 import { mergeAsyncIterables } from "./mergeAsyncIterable.js";
-import { aggregateAsyncIterable } from "./testUtils.js";
+import { aggregateAsyncIterable } from "./test.utils.js";
 
 test("basic", async () => {
 	type Type = number | string;
