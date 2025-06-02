@@ -1,6 +1,3 @@
-> [!CAUTION]
-> This is an experimental package and not ready for production use.
-
 <h1 align="center">Devalue Async</h1>
 
 <p align="center">Extension of the great <a href="https://github.com/Rich-Harris/devalue">devalue</a> package with ability to handle async values</p>
