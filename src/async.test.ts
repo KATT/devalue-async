@@ -3,55 +3,23 @@ import { AddressInfo } from "node:net";
 import { expect, test } from "vitest";
 
 import { parseAsync, stringifyAsync } from "./async.js";
-import { aggregateAsyncIterable } from "./test.utils.js";
+import { aggregateAsyncIterable, sleep, waitError } from "./test.utils.js";
 
-type Constructor<T extends object = object> = new (...args: any[]) => T;
+function serverResource(
+	handler: (req: http.IncomingMessage, res: http.ServerResponse) => void,
+) {
+	const server = http.createServer(handler);
+	server.listen(0);
+	const port = (server.address() as AddressInfo).port;
 
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+	const url = `http://localhost:${String(port)}`;
 
-function readableStreamFrom<T>(iterable: AsyncIterable<T>) {
-	const iterator = iterable[Symbol.asyncIterator]();
-
-	return new ReadableStream<T>({
-		async cancel() {
-			await iterator.return?.();
+	return {
+		[Symbol.dispose]() {
+			server.close();
 		},
-
-		async pull(controller) {
-			const result = await iterator.next();
-
-			if (result.done) {
-				controller.close();
-				return;
-			}
-
-			controller.enqueue(result.value);
-		},
-	});
-}
-
-async function waitError<TError extends Error = Error>(
-	fnOrPromise: (() => unknown) | Promise<unknown>,
-	errorConstructor?: Constructor<TError>,
-): Promise<TError> {
-	try {
-		if (typeof fnOrPromise === "function") {
-			await fnOrPromise();
-		} else {
-			await fnOrPromise;
-		}
-	} catch (cause) {
-		expect(cause).toBeInstanceOf(errorConstructor ?? Error);
-		return cause as TError;
-	}
-	throw new Error("Function did not throw");
-}
-
-async function* withDebug<T>(iterable: AsyncIterable<T>) {
-	for await (const value of iterable) {
-		yield value;
-		// console.log("yielding", value);
-	}
+		url,
+	};
 }
 
 test("stringify and unflatten async", async () => {
@@ -71,7 +39,7 @@ test("stringify and unflatten async", async () => {
 	type Source = ReturnType<typeof source>;
 	const iterable = stringifyAsync(source());
 
-	const result = await parseAsync<Source>(withDebug(iterable));
+	const result = await parseAsync<Source>(iterable);
 
 	expect(await result.promise).toEqual("resolved promise");
 
@@ -199,7 +167,7 @@ test("stringify and parse async values with errors", async () => {
 		},
 	});
 
-	const result = await parseAsync<Source>(withDebug(iterable), {
+	const result = await parseAsync<Source>(iterable, {
 		revivers: {
 			MyCustomError: (value) => {
 				return new MyCustomError(value as string);
@@ -232,36 +200,6 @@ test("stringify and parse async values with errors", async () => {
 	}
 });
 
-test("request/response-like readable streams", async () => {
-	const source = () => ({
-		asyncIterable: (async function* () {
-			yield -0;
-			yield 1;
-			yield 2;
-			return "returned async iterable";
-		})(),
-		promise: (async () => {
-			return "resolved promise";
-		})(),
-	});
-	type Source = ReturnType<typeof source>;
-	const responseBodyStream = readableStreamFrom(
-		stringifyAsync(source()),
-	).pipeThrough(new TextEncoderStream());
-
-	const result = await parseAsync<Source>(
-		responseBodyStream.pipeThrough(new TextDecoderStream()),
-	);
-
-	expect(await result.promise).toEqual("resolved promise");
-
-	const aggregate = await aggregateAsyncIterable(result.asyncIterable);
-
-	expect(aggregate.ok).toBe(true);
-	expect(aggregate.items).toEqual([-0, 1, 2]);
-	expect(aggregate.return).toEqual("returned async iterable");
-});
-
 test("stringify and unflatten ReadableStream", async () => {
 	const source = () => ({
 		stream: new ReadableStream<string>({
@@ -275,7 +213,7 @@ test("stringify and unflatten ReadableStream", async () => {
 	type Source = ReturnType<typeof source>;
 
 	const iterable = stringifyAsync(source());
-	const result = await parseAsync<Source>(withDebug(iterable));
+	const result = await parseAsync<Source>(iterable);
 
 	expect(result.stream).toBeInstanceOf(ReadableStream);
 
@@ -286,29 +224,14 @@ test("stringify and unflatten ReadableStream", async () => {
 	expect(aggregate.return).toBeUndefined();
 });
 
-function serverResource(
-	handler: (req: http.IncomingMessage, res: http.ServerResponse) => void,
-) {
-	const server = http.createServer(handler);
-	server.listen(0);
-	const port = (server.address() as AddressInfo).port;
-
-	const url = `http://localhost:${String(port)}`;
-
-	return {
-		[Symbol.dispose]() {
-			server.close();
-		},
-		url,
-	};
-}
-
 test("async over the wire", async () => {
 	const source = () => ({
 		asyncIterable: (async function* () {
 			yield "hello";
 			await sleep(1);
 			yield "world";
+
+			return "returned async iterable";
 		})(),
 	});
 	type Source = ReturnType<typeof source>;
@@ -328,19 +251,16 @@ test("async over the wire", async () => {
 
 		const bodyTextStream = response.body!.pipeThrough(new TextDecoderStream());
 
-		const chunks: string[] = [];
-		for await (const chunk of bodyTextStream) {
-			chunks.push(chunk);
-		}
+		const aggregate = await aggregateAsyncIterable(bodyTextStream);
 
-		const conc = chunks.join("").split("\n");
+		const conc = aggregate.items.join("").split("\n");
 
 		expect(conc).toMatchInlineSnapshot(`
 			[
 			  "[{"asyncIterable":1},["AsyncIterable",2],1]",
 			  "[1,0,["hello"]]",
 			  "[1,0,["world"]]",
-			  "[1,2,-1]",
+			  "[1,2,["returned async iterable"]]",
 			  "",
 			]
 		`);
@@ -358,7 +278,7 @@ test("async over the wire", async () => {
 
 		expect(aggregate.ok).toBe(true);
 		expect(aggregate.items).toEqual(["hello", "world"]);
-		expect(aggregate.return).toBeUndefined();
+		expect(aggregate.return).toEqual("returned async iterable");
 	}
 });
 
@@ -375,12 +295,29 @@ test("dedupe", async () => {
 	});
 	type Source = ReturnType<typeof source>;
 
-	const iterable = stringifyAsync(source());
-	const result = await parseAsync<Source>(iterable);
+	{
+		const aggregate = await aggregateAsyncIterable(stringifyAsync(source()));
 
-	expect(result.promise1).toStrictEqual(result.promise2);
+		const conc = aggregate.items.join("").split("\n");
 
-	expect(await result.promise1).toEqual(user);
+		expect(conc).toMatchInlineSnapshot(`
+			[
+			  "[{"promise1":1,"promise2":1},["Promise",2],1]",
+			  "[1,0,[{"id":1},1]]",
+			  "",
+			]
+		`);
+	}
+
+	{
+		const iterable = stringifyAsync(source());
+
+		const result = await parseAsync<Source>(iterable);
+
+		expect(result.promise1).toStrictEqual(result.promise2);
+
+		expect(await result.promise1).toEqual(user);
+	}
 });
 
 test.fails("todo(?) - referential integrity across chunks", async () => {
