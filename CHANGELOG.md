@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.7.1](https://github.com/KATT/devalue-async/compare/0.7.0...0.7.1) (2025-06-02)
+
+### Bug Fixes
+
+- update readme + small refactors ([#30](https://github.com/KATT/devalue-async/issues/30)) ([f44a630](https://github.com/KATT/devalue-async/commit/f44a630cdc2f0068699d64b555aba8b541e626ad)), closes [#000](https://github.com/KATT/devalue-async/issues/000)
+
 # [0.7.0](https://github.com/KATT/devalue-async/compare/0.6.2...0.7.0) (2025-06-02)
 
 ### Features
