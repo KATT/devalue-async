@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.7.2](https://github.com/KATT/devalue-async/compare/0.7.1...0.7.2) (2025-06-02)
+
+### Bug Fixes
+
+- add docs on serialization format and limitations ([#37](https://github.com/KATT/devalue-async/issues/37)) ([e0b9993](https://github.com/KATT/devalue-async/commit/e0b999399c1e0232161a4ab30ab8f5a6077e2408))
+
 ## [0.7.1](https://github.com/KATT/devalue-async/compare/0.7.0...0.7.1) (2025-06-02)
 
 ### Bug Fixes
