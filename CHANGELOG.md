@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.2](https://github.com/KATT/devalue-async/compare/0.6.1...0.6.2) (2025-06-02)
+
+### Bug Fixes
+
+- refactors, tsdown, smaller bundle ([#23](https://github.com/KATT/devalue-async/issues/23)) ([2bdef71](https://github.com/KATT/devalue-async/commit/2bdef71a81e6e8ecb649977239444f2cae80ed70))
+
 ## [0.6.1](https://github.com/KATT/devalue-async/compare/0.6.0...0.6.1) (2025-06-01)
 
 ### Bug Fixes
