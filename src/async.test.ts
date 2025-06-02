@@ -3,11 +3,7 @@ import { AddressInfo } from "node:net";
 import { expect, test } from "vitest";
 
 import { parseAsync, stringifyAsync } from "./async.js";
-import { aggregateAsyncIterable } from "./test.utils.js";
-
-type Constructor<T extends object = object> = new (...args: any[]) => T;
-
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+import { aggregateAsyncIterable, sleep, waitError } from "./test.utils.js";
 
 function readableStreamFrom<T>(iterable: AsyncIterable<T>) {
 	const iterator = iterable[Symbol.asyncIterator]();
@@ -28,23 +24,6 @@ function readableStreamFrom<T>(iterable: AsyncIterable<T>) {
 			controller.enqueue(result.value);
 		},
 	});
-}
-
-async function waitError<TError extends Error = Error>(
-	fnOrPromise: (() => unknown) | Promise<unknown>,
-	errorConstructor?: Constructor<TError>,
-): Promise<TError> {
-	try {
-		if (typeof fnOrPromise === "function") {
-			await fnOrPromise();
-		} else {
-			await fnOrPromise;
-		}
-	} catch (cause) {
-		expect(cause).toBeInstanceOf(errorConstructor ?? Error);
-		return cause as TError;
-	}
-	throw new Error("Function did not throw");
 }
 
 async function* withDebug<T>(iterable: AsyncIterable<T>) {
@@ -328,12 +307,9 @@ test("async over the wire", async () => {
 
 		const bodyTextStream = response.body!.pipeThrough(new TextDecoderStream());
 
-		const chunks: string[] = [];
-		for await (const chunk of bodyTextStream) {
-			chunks.push(chunk);
-		}
+		const aggregate = await aggregateAsyncIterable(bodyTextStream);
 
-		const conc = chunks.join("").split("\n");
+		const conc = aggregate.items.join("").split("\n");
 
 		expect(conc).toMatchInlineSnapshot(`
 			[
@@ -375,12 +351,29 @@ test("dedupe", async () => {
 	});
 	type Source = ReturnType<typeof source>;
 
-	const iterable = stringifyAsync(source());
-	const result = await parseAsync<Source>(iterable);
+	{
+		const aggregate = await aggregateAsyncIterable(stringifyAsync(source()));
 
-	expect(result.promise1).toStrictEqual(result.promise2);
+		const conc = aggregate.items.join("").split("\n");
 
-	expect(await result.promise1).toEqual(user);
+		expect(conc).toMatchInlineSnapshot(`
+			[
+			  "[{"promise1":1,"promise2":1},["Promise",2],1]",
+			  "[1,0,[{"id":1},1]]",
+			  "",
+			]
+		`);
+	}
+
+	{
+		const iterable = stringifyAsync(source());
+
+		const result = await parseAsync<Source>(iterable);
+
+		expect(result.promise1).toStrictEqual(result.promise2);
+
+		expect(await result.promise1).toEqual(user);
+	}
 });
 
 test.fails("todo(?) - referential integrity across chunks", async () => {
