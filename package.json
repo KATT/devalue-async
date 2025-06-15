@@ -87,7 +87,7 @@
 	"peerDependencies": {
 		"devalue": "^5.0.0"
 	},
-	"packageManager": "pnpm@10.11.0",
+	"packageManager": "pnpm@10.12.1",
 	"engines": {
 		"node": ">=18.3.0"
 	},
