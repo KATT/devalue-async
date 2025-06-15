@@ -1,3 +1,4 @@
+import { parse, stringify } from "devalue";
 import http from "node:http";
 import { AddressInfo } from "node:net";
 import { expect, test } from "vitest";
@@ -453,4 +454,36 @@ test("serialization format for readme", async () => {
 		[1,2,["return value"]]
 		"
 	`);
+});
+
+test.fails("devalue limitation: custom type with recursive references", () => {
+	class Node {
+		constructor(
+			public id: string,
+			public edges: Node[],
+		) {}
+	}
+
+	const node1 = new Node("1", []);
+	const node2 = new Node("2", [node1]);
+	node1.edges.push(node2);
+
+	const source = () => ({
+		nodes: [node1, node2] as const,
+	});
+	type Source = ReturnType<typeof source>;
+
+	const str = stringify(source(), {
+		Node: (value) => value instanceof Node && [value.id, value.edges],
+	});
+
+	const result = parse(str, {
+		Node: (value) => {
+			const [id, edges] = value as [string, Node[]];
+			return new Node(id, edges);
+		},
+	}) as Source;
+
+	expect(result.nodes[0].edges[0]).toBe(result.nodes[1]);
+	expect(result.nodes[1].edges[0]).toBe(result.nodes[0]);
 });
