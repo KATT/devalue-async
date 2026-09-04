@@ -80,7 +80,7 @@
 		"release-it": "21.0.2",
 		"sentences-per-line": "0.3.0",
 		"tsdown": "^0.15.0",
-		"typescript": "5.9.2",
+		"typescript": "7.0.2",
 		"typescript-eslint": "8.41.0",
 		"vitest": "4.1.10"
 	},
