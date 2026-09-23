@@ -194,8 +194,8 @@ importers:
         specifier: 10.3.0
         version: 10.3.0
       devalue:
-        specifier: ^5.5.0
-        version: 5.9.4
+        specifier: ^6.0.0
+        version: 6.0.1
       eslint:
         specifier: 9.39.1
         version: 9.39.1(jiti@2.7.0)(supports-color@7.2.0)
@@ -1805,8 +1805,9 @@ packages:
     resolution: {integrity: sha512-qE3Veg1YXzGHQhlA6jzebZN2qVf6NX+A7m7qlhCGG30dJixrAQhYOsJjsnBjJkCSmuOPpCk30145fr8FV0bzog==}
     engines: {node: ^12.20.0 || ^14.13.1 || >=16.0.0}
 
-  devalue@5.9.4:
-    resolution: {integrity: sha512-sPAT4pztbu6586/hrhOnMKS17IJrvg12mXiSPSS3W5qDeN2RGgvZ0diZCm31dBbnevfVmujNO3IM2wrS4Y2Rhg==}
+  devalue@6.0.1:
+    resolution: {integrity: sha512-WOvqMkAce4g13SZ6SLi49V06MKDHD2fp97IeZ6a8aNgBA3kM0EIp9ckfONduInnAjcdwkny9Hji7yNZkKY3PGw==}
+    engines: {node: '>=22.17'}
 
   devlop@1.1.0:
     resolution: {integrity: sha512-RWmIqhcFf1lRYBvNmr7qTNuyCt/7/ns2jbpp1+PalgE/rDQcBT0fioSMUpJ93irlUhC5hrg4cYqe6U+0ImW0rA==}
@@ -4869,7 +4870,7 @@ snapshots:
 
   detect-newline@4.0.1: {}
 
-  devalue@5.9.4: {}
+  devalue@6.0.1: {}
 
   devlop@1.1.0:
     dependencies:
